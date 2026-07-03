@@ -1,4 +1,4 @@
-import { from, map, Observable, of, retry, Subject, take, timer } from 'rxjs';
+import { firstValueFrom, from, map, Observable, of, retry, Subject, take, timer } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { chain } from '../../src/chain/chain';
 import type { ChainEvent } from '../../src/chain/events';
@@ -125,6 +125,7 @@ describe('D3.3 point 2 — lifecycle coupling and terminal events', () => {
     const subscription = result$.subscribe();
     await tick();
     subscription.unsubscribe();
+    await tick(); // the cancellation decision is deferred one microtask
 
     expect(innerTorndown).toBe(true); // in-flight work aborted
     expect(progressCompleted).toBe(true);
@@ -136,6 +137,29 @@ describe('D3.3 point 2 — lifecycle coupling and terminal events', () => {
     await tick();
     expect(lateCompleted).toBe(true);
     expect(lateValue).toBeUndefined();
+  });
+
+  it('firstValueFrom-style consumption — unsubscribe inside the final delivery — settles as success, not cancellation', async () => {
+    // The third latch-race variant, consumer-driven: firstValueFrom
+    // unsubscribes synchronously between the source's next and complete.
+    // The deferred cancellation decision must let the completion win.
+    const { built, executions } = countingChain();
+    const { result$, progress$ } = built.run({ q: 'x' });
+    const events: ChainEvent[] = [];
+    let progressCompleted = false;
+    progress$.subscribe({
+      next: (e) => events.push(e),
+      complete: () => (progressCompleted = true),
+    });
+    const value = await firstValueFrom(result$);
+    await tick();
+
+    expect(value).toEqual({ q: 'x', a: 'x-a', b: 'x-a-b' });
+    expect(events.at(-1)).toEqual({ type: 'run_complete' }); // success, not silence
+    expect(progressCompleted).toBe(true);
+    expect(executions()).toBe(1);
+    // and the run latched as success: a late subscriber gets the value
+    expect(await firstValueFrom(result$)).toBe(value);
   });
 
   it('straggler emissions after cancellation are discarded, never latched over the cancelled state', async () => {

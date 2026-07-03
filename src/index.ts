@@ -72,9 +72,19 @@ export {
 export {
   chain,
   type ChainBuilder,
+  type ChainOptions,
   type ChainRun,
   type RunnableChain,
 } from './chain/chain';
-export { stage, type EmitFn } from './chain/stage';
+export { stage, type EmitFn, type StageFn } from './chain/stage';
+export {
+  collectorSink,
+  consoleSink,
+  traced,
+  type CollectorSink,
+  type TraceContext,
+  type TraceEvent,
+  type TraceSink,
+} from './chain/trace';
 export { collectText } from './chain/collect-text';
 export type { ChainEvent } from './chain/events';

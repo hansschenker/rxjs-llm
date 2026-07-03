@@ -9,7 +9,19 @@ import {
   type Subscription,
 } from 'rxjs';
 import type { ChainEvent } from './events';
-import { CHAIN_EMIT, type InternalEmit } from './stage';
+import { CHAIN_EMIT, CHAIN_TRACE, type InternalEmit } from './stage';
+import type { TraceContext, TraceSink } from './trace';
+
+export interface ChainOptions {
+  /** Trace sink; when set, every stage reports start/complete/error to it. */
+  trace?: TraceSink;
+  /** Injectable clock for deterministic trace tests. Default: Date.now. */
+  now?: () => number;
+  /** Correlation-id factory, called once per run(). Default: a counter. */
+  runId?: () => string;
+}
+
+let runCounter = 0;
 
 /** One run(): a passive progress channel and the result that drives the work. */
 export interface ChainRun<Out extends object> {
@@ -88,10 +100,10 @@ export interface ChainBuilder<In extends object> {
  * merely remembers the operator list; nothing executes until a run's
  * result$ is first subscribed.
  */
-export function chain<In extends object>(): ChainBuilder<In> {
+export function chain<In extends object>(options: ChainOptions = {}): ChainBuilder<In> {
   const builder = {
     pipe: (...operators: OperatorFunction<object, object>[]) => ({
-      run: (input: In) => runChain(input, operators),
+      run: (input: In) => runChain(input, operators, options),
     }),
   };
   return builder as unknown as ChainBuilder<In>;
@@ -127,6 +139,7 @@ export function chain<In extends object>(): ChainBuilder<In> {
 function runChain<In extends object, Out extends object>(
   input: In,
   operators: OperatorFunction<object, object>[],
+  options: ChainOptions,
 ): ChainRun<Out> {
   const progress = new Subject<ChainEvent>();
   const output = new ReplaySubject<Out>(1);
@@ -140,7 +153,16 @@ function runChain<In extends object, Out extends object>(
     const internalEmit: InternalEmit = (stage, event) => {
       progress.next({ type: 'stage_event', stage, event });
     };
-    const seeded: object = Object.assign({}, input, { [CHAIN_EMIT]: internalEmit });
+    const plumbing: Record<PropertyKey, unknown> = { [CHAIN_EMIT]: internalEmit };
+    if (options.trace !== undefined) {
+      const traceContext: TraceContext = {
+        sink: options.trace,
+        runId: options.runId?.() ?? `run_${++runCounter}`,
+        now: options.now ?? Date.now,
+      };
+      plumbing[CHAIN_TRACE] = traceContext;
+    }
+    const seeded: object = Object.assign({}, input, plumbing);
     let source: Observable<object> = of(seeded);
     for (const op of operators) source = op(source);
 
@@ -148,6 +170,7 @@ function runChain<In extends object, Out extends object>(
       next: (ctx) => {
         const finalCtx = Object.assign({}, ctx) as Record<PropertyKey, unknown>;
         delete finalCtx[CHAIN_EMIT];
+        delete finalCtx[CHAIN_TRACE];
         output.next(finalCtx as Out);
       },
       error: (error: unknown) => {
@@ -176,10 +199,20 @@ function runChain<In extends object, Out extends object>(
       subscriberCount -= 1;
       delivery.unsubscribe();
       if (subscriberCount === 0 && !settled) {
-        settled = true; // cancelled: latch so nothing ever re-executes
-        execution?.unsubscribe(); // aborts in-flight provider requests
-        progress.complete(); // silent — no terminal event (ADR-0005)
-        output.complete(); // late subscribers: immediate empty completion
+        // Deferred by one microtask: a firstValueFrom-style consumer
+        // unsubscribes synchronously INSIDE the final value's delivery,
+        // between the source's next and its complete. Cancelling here
+        // would abort an execution that is mid-completion and misreport
+        // success as cancellation. After the microtask the cascade has
+        // settled; only a genuinely mid-flight run still gets aborted.
+        queueMicrotask(() => {
+          if (subscriberCount === 0 && !settled) {
+            settled = true; // cancelled: latch so nothing ever re-executes
+            execution?.unsubscribe(); // aborts in-flight provider requests
+            progress.complete(); // silent — no terminal event (ADR-0005)
+            output.complete(); // late subscribers: immediate empty completion
+          }
+        });
       }
     };
   });
