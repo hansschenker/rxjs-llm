@@ -1,13 +1,5 @@
-import {
-  asapScheduler,
-  Observable,
-  of,
-  ReplaySubject,
-  Subject,
-  subscribeOn,
-  type OperatorFunction,
-  type Subscription,
-} from 'rxjs';
+import { map, of, type Observable, type OperatorFunction } from 'rxjs';
+import { dualChannel } from './dual-channel';
 import type { ChainEvent } from './events';
 import { CHAIN_EMIT, CHAIN_TRACE, stageOf, type InternalEmit } from './stage';
 import type { TraceContext, TraceSink } from './trace';
@@ -110,114 +102,53 @@ export function chain<In extends object>(options: ChainOptions = {}): ChainBuild
 }
 
 /**
- * The dual-channel contract (D3.3, ADR-0006), point by point:
- *
- * 1. Passivity — progress$ is fed by whatever execution result$ drives;
- *    subscribing to it alone triggers nothing.
- * 2. Lifecycle — natural termination pushes exactly one terminal event
- *    (run_complete | run_failed) onto progress$ and then completes it. The
- *    error OBJECT travels on result$ only. Cancellation (last result$
- *    subscriber leaves mid-flight) aborts the execution and completes both
- *    channels silently — no terminal event, no error (ADR-0005).
- * 3. Unobserved progress events are dropped: plain Subject, no replay.
- * 4. One run() = one logical execution, outcome latched. This is a
- *    hand-rolled multicast rather than share({...latched}) because no
- *    combination of share's reset flags expresses it: with
- *    resetOnRefCountZero:false an abandoned run keeps executing (nothing
- *    aborts the in-flight provider call — a teardown-law violation), and
- *    with true, resubscribing after abandonment silently re-executes. Here
- *    refcount-zero-before-terminal aborts AND latches: late subscribers to
- *    a cancelled run get an immediate empty completion, never a re-run.
- *    The latch is first-writer-wins: `settled` guards both directions, and
- *    straggler emissions after an abort die against two rxjs walls — a
- *    closed subscription discards next/complete, and a completed Subject
- *    ignores next().
- *
- * Execution is subscribed on the asap scheduler so a fully-synchronous
- * stage still cannot emit in the first subscriber's call frame (no Zalgo).
+ * The dual-channel contract (D3.3, ADR-0006) lives in dual-channel.ts —
+ * one audited implementation shared with the agent loop (D6.4, ADR-0026).
+ * This function contributes only what is chain-specific: the plumbing
+ * symbols (emit + trace context), the operator pipe, and the final-context
+ * symbol strip.
  */
 function runChain<In extends object, Out extends object>(
   input: In,
   operators: OperatorFunction<object, object>[],
   options: ChainOptions,
 ): ChainRun<Out> {
-  const progress = new Subject<ChainEvent>();
-  const output = new ReplaySubject<Out>(1);
-  let subscriberCount = 0;
-  let started = false;
-  let settled = false;
-  let execution: Subscription | undefined;
-
-  const start = (): void => {
-    started = true;
-    const internalEmit: InternalEmit = (stage, event) => {
-      progress.next({ type: 'stage_event', stage, event });
-    };
-    const plumbing: Record<PropertyKey, unknown> = { [CHAIN_EMIT]: internalEmit };
-    if (options.trace !== undefined) {
-      const traceContext: TraceContext = {
-        sink: options.trace,
-        runId: options.runId?.() ?? `run_${++runCounter}`,
-        now: options.now ?? Date.now,
-      };
-      plumbing[CHAIN_TRACE] = traceContext;
-    }
-    const seeded: object = Object.assign({}, input, plumbing);
-    let source: Observable<object> = of(seeded);
-    for (const op of operators) source = op(source);
-
-    execution = source.pipe(subscribeOn(asapScheduler)).subscribe({
-      next: (ctx) => {
-        const finalCtx = Object.assign({}, ctx) as Record<PropertyKey, unknown>;
-        delete finalCtx[CHAIN_EMIT];
-        delete finalCtx[CHAIN_TRACE];
-        output.next(finalCtx as Out);
-      },
+  return dualChannel<Out, ChainEvent>({
+    terminal: {
+      complete: () => ({ type: 'run_complete' }),
       error: (error: unknown) => {
-        settled = true;
         const stage = stageOf(error);
-        progress.next({
+        return {
           type: 'run_failed',
           message: error instanceof Error ? error.message : String(error),
           ...(stage !== undefined && { stage }),
-        });
-        progress.complete();
-        output.error(error);
+        };
       },
-      complete: () => {
-        settled = true;
-        progress.next({ type: 'run_complete' });
-        progress.complete();
-        output.complete();
-      },
-    });
-  };
-
-  const result$ = new Observable<Out>((subscriber) => {
-    subscriberCount += 1;
-    const delivery = output.subscribe(subscriber);
-    if (!started) start();
-    return () => {
-      subscriberCount -= 1;
-      delivery.unsubscribe();
-      if (subscriberCount === 0 && !settled) {
-        // Deferred by one microtask: a firstValueFrom-style consumer
-        // unsubscribes synchronously INSIDE the final value's delivery,
-        // between the source's next and its complete. Cancelling here
-        // would abort an execution that is mid-completion and misreport
-        // success as cancellation. After the microtask the cascade has
-        // settled; only a genuinely mid-flight run still gets aborted.
-        queueMicrotask(() => {
-          if (subscriberCount === 0 && !settled) {
-            settled = true; // cancelled: latch so nothing ever re-executes
-            execution?.unsubscribe(); // aborts in-flight provider requests
-            progress.complete(); // silent — no terminal event (ADR-0005)
-            output.complete(); // late subscribers: immediate empty completion
-          }
-        });
+    },
+    work: (emit) => {
+      const internalEmit: InternalEmit = (stage, event) => {
+        emit({ type: 'stage_event', stage, event });
+      };
+      const plumbing: Record<PropertyKey, unknown> = { [CHAIN_EMIT]: internalEmit };
+      if (options.trace !== undefined) {
+        const traceContext: TraceContext = {
+          sink: options.trace,
+          runId: options.runId?.() ?? `run_${++runCounter}`,
+          now: options.now ?? Date.now,
+        };
+        plumbing[CHAIN_TRACE] = traceContext;
       }
-    };
+      const seeded: object = Object.assign({}, input, plumbing);
+      let source: Observable<object> = of(seeded);
+      for (const op of operators) source = op(source);
+      return source.pipe(
+        map((ctx) => {
+          const finalCtx = Object.assign({}, ctx) as Record<PropertyKey, unknown>;
+          delete finalCtx[CHAIN_EMIT];
+          delete finalCtx[CHAIN_TRACE];
+          return finalCtx as Out;
+        }),
+      );
+    },
   });
-
-  return { result$, progress$: progress.asObservable() };
 }

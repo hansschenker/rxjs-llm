@@ -1,4 +1,4 @@
-import { defer, map, Observable, of, timer } from 'rxjs';
+import { defer, map, Observable, of, Subject, take, timer } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { createMemory, type Turn } from '../../src/memory/core';
 import { summaryView } from '../../src/memory/summary';
@@ -103,20 +103,26 @@ describe('summaryView (D5.2)', () => {
   });
 
   it('never overlaps folds, and a backlog folds again right after (exhaustMap + state re-eval)', async () => {
-    const { model, calls } = scriptedModel((call) => timer(20).pipe(map(() => `S${call}`)));
+    // gated folds: each completes only when the test releases it — no clocks
+    const gates: Subject<string>[] = [];
+    const { model, calls } = scriptedModel(() => {
+      const gate = new Subject<string>();
+      gates.push(gate);
+      return gate.pipe(take(1));
+    });
     const memory = createMemory({
       view: summaryView(model, undefined, { foldAfter: 2, keepRecent: 0 }),
     });
 
     for (let i = 1; i <= 3; i += 1) memory.record(turn(i)); // triggers fold 1
-    await tick(5);
-    expect(calls()).toBe(1);
+    await vi.waitFor(() => expect(calls()).toBe(1));
     for (let i = 4; i <= 7; i += 1) memory.record(turn(i)); // arrives mid-fold
-    await tick(5);
-    expect(calls()).toBe(1); // exhaustMap: no overlap
+    await tick();
+    expect(calls()).toBe(1); // exhaustMap: no overlap — fold 1 is provably still open
 
-    // fold 1 completes (folded=3), backlog of 4 un-summarized > 2 → fold 2 fires
+    gates[0]!.next('S1'); // fold 1 completes (folded=3); backlog of 4 > 2 → fold 2
     await vi.waitFor(() => expect(calls()).toBe(2));
+    gates[1]!.next('S2');
     memory.dispose();
   });
 

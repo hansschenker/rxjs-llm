@@ -129,6 +129,19 @@ export {
 } from './memory/summary';
 
 export {
+  executeToolCall,
+  tool,
+  toolRegistry,
+  toToolDefinition,
+  type Tool,
+  type ToolContext,
+  type ToolExecutionResult,
+  type ToolSpec,
+} from './agent/tool';
+export { runAgent, type AgentOptions, type AgentOutcome } from './agent/loop';
+export type { AgentEvent } from './agent/events';
+
+export {
   chain,
   type ChainBuilder,
   type ChainOptions,
