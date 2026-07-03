@@ -22,3 +22,10 @@ export {
 } from './errors';
 
 export { collectCompletion, foldEvents } from './completion';
+
+export {
+  fetchStream,
+  parseRetryAfter,
+  type FetchStreamInit,
+} from './transport/fetch-stream';
+export { parseSse, type SseEvent } from './transport/sse';

@@ -1,12 +1,12 @@
 # STATUS
 
 **Current module:** 1 — Uniform Model Interface
-**Current phase:** 1 of 6 (scaffold + types + errors) — in progress
+**Current phase:** 3 of 6 (Anthropic adapter)
 
 ## Module 1 phase checklist
 
 - [x] Phase 1 — Scaffold, `types.ts`, `errors.ts`, governance docs. Taxonomy tests pass.
-- [ ] Phase 2 — Transport: `fetchStream` (teardown-tested), SSE parser (adversarial fixtures).
+- [x] Phase 2 — Transport: `fetchStream` (teardown-tested), SSE parser (adversarial fixtures).
 - [ ] Phase 3 — Anthropic adapter, full event mapping incl. tool-use and in-stream errors.
 - [ ] Phase 4 — OpenAI + Ollama adapters; NDJSON framing joins the transport layer.
 - [ ] Phase 5 — Resilience operators: `retryWithBackoff`, `streamTimeout`, `rateLimit`.
