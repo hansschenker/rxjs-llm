@@ -69,6 +69,15 @@ export {
   type JsonFormat,
 } from './prompt/format';
 
+export type { Chunk, Doc, TextChunk } from './index/types';
+export {
+  charEstimator,
+  splitDocs,
+  splitText,
+  type SplitOptions,
+  type Tokenizer,
+} from './index/split';
+
 export {
   chain,
   type ChainBuilder,
