@@ -108,6 +108,27 @@ export {
 export { ingest, toVectorEntry, upsertInto, type IngestOptions } from './index/ingest';
 
 export {
+  createMemory,
+  type Memory,
+  type MemoryOptions,
+  type MemorySnapshot,
+  type MemoryView,
+  type Turn,
+} from './memory/core';
+export {
+  fullView,
+  tokenBudgetView,
+  turnsToMessages,
+  turnTokens,
+  windowView,
+} from './memory/views';
+export {
+  summaryView,
+  type SummaryPrompt,
+  type SummaryViewOptions,
+} from './memory/summary';
+
+export {
   chain,
   type ChainBuilder,
   type ChainOptions,
