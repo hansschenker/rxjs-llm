@@ -1,27 +1,29 @@
 # STATUS
 
-**Current module:** 3 — Chains — **complete, tagged v0.3.0**
-**Next:** Module 4 — Indexes / RAG, or Module 5 — Memory (small; pairs well
-with 4). See `rxjs-llm-module-plans.md`.
+**Current module:** 4 — Indexes / RAG — **complete, tagged v0.4.0**
+**Next:** Module 5 — Memory (small), then Module 6 — Agents (the capstone).
+See `rxjs-llm-module-plans.md`.
 
-## Module 3 phase checklist
+## Module 4 phase checklist
 
-- [x] Phase 1 — `stage()` + context merge types (shipped with the D3.3
-      pull-forward); ADR-0010 (D3.1), ADR-0011 (D3.2).
-- [x] Phase 2 — `traced()` + TraceSink (ADR-0012, D3.4). Surfaced and fixed
-      the third latch race (firstValueFrom-style consumers) and the stage
-      lifecycle ordering bug (bodies now buffer to completion).
-- [x] Phase 3 — `progress$` dual channel (pulled forward earlier;
-      ADR-0006, D3.3; latch race audited).
-- [x] Phase 4 — `stages.parallel` (forkJoin) + `stage.when`; sibling-branch
-      type isolation pinned.
-- [x] Phase 5 — Error policies `fail | skip | fallback`; `stageOf()`
-      attribution without wrapping (ADR-0013); retryWithBackoff composes
-      inside stage bodies.
-- [x] Phase 6 — End-to-end test: prompts → adapter → chain with every
-      feature, over real HTTP against the mock server. README section.
+- [x] Phase 1 — Splitter: pure, lossless, offset-carrying; property tests
+      for partition/budget/surrogates. Tokenizer interface, chars/4
+      default, no tiktoken. ADR-0014.
+- [x] Phase 2 — In-memory vector store + the shared contract suite (the
+      store law tests). ADR-0015.
+- [x] Phase 3 — Embedder interface (openai + ollama adapters), fetchJson
+      transport sibling, embedBatched (bufferCount + rateLimit +
+      concatMap, marble-tested). ADR-0016.
+- [x] Phase 4 — Loaders: text-file (dynamic node:fs), web (fetchStream +
+      crude extraction), json. Fixture corpus added. ADR-0017.
+- [x] Phase 5 — PGlite + pgvector via Drizzle, opt-in `rxjs-llm/pglite`
+      subpath, contract suite generalized to fixed dimensions. ADR-0018.
+- [x] Phase 6 — retrieveContext (one operator), upsertInto/ingest,
+      end-to-end retrieval over the fixture corpus with a real
+      (deterministic bag-of-words) embedding. ADR-0019.
 
-173 tests, all green; strict `tsc` clean. Sole runtime dependency: `rxjs`.
+230 tests, all green; strict `tsc` clean. Core runtime dependency: `rxjs`
+only (pglite/drizzle are opt-in via subpath, dev-installed here).
 
 ## Modules
 
@@ -30,8 +32,8 @@ with 4). See `rxjs-llm-module-plans.md`.
 | 1 | Uniform Model Interface | **done — v0.1.0** |
 | 2 | Prompts | **done — v0.2.0** |
 | 3 | Chains | **done — v0.3.0** |
-| 4 | Indexes / RAG | planned |
+| 4 | Indexes / RAG | **done — v0.4.0** |
 | 5 | Memory | planned |
 | 6 | Agents / tool use | planned |
 
-Full plans: `rxjs-llm-module-plans.md`. Decisions: `decisions/` (13 ADRs).
+Full plans: `rxjs-llm-module-plans.md`. Decisions: `decisions/` (19 ADRs).

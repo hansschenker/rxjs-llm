@@ -101,6 +101,13 @@ export { extractText, webLoader, type WebLoaderOptions } from './index/loaders/w
 export { jsonLoader, type JsonLoaderOptions } from './index/loaders/json';
 
 export {
+  retrieveContext,
+  type RetrievedContext,
+  type RetrieveOptions,
+} from './index/retrieve';
+export { ingest, toVectorEntry, upsertInto, type IngestOptions } from './index/ingest';
+
+export {
   chain,
   type ChainBuilder,
   type ChainOptions,

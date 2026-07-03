@@ -210,6 +210,35 @@ fallback`, errors carry their stage via `stageOf(error)`, and `traced()`
 reports stage lifecycle to any `TraceSink` — the LangSmith seam is one
 interface with one method.
 
+## RAG is a pipe
+
+Loaders stream documents, the splitter is pure and lossless (chunks carry
+exact source offsets), embeddings mirror the `ChatModel` pattern, and the
+whole ingestion pipeline is one subscription:
+
+```ts
+import { textFileLoader, splitDocs, embedBatched, upsertInto, memoryStore,
+         openaiEmbedder, retrieveContext } from 'rxjs-llm';
+
+const store = memoryStore(); // brute-force cosine, honest to ~50k vectors
+const embedder = openaiEmbedder({ apiKey, model: 'text-embedding-3-small' });
+
+textFileLoader('./docs').pipe(
+  splitDocs({ maxTokens: 400, overlap: 40 }),
+  embedBatched(embedder, { batchSize: 64, requestsPerInterval: 10, intervalMs: 1000 }),
+  upsertInto(store),
+).subscribe();       // unsubscribe = stop the walk, abort the in-flight request
+
+// Retrieval is one operator — drop it into a chain stage:
+stage('retrieve', ctx =>
+  of(ctx.question).pipe(retrieveContext(store, embedder, 6, { tokenBudget: 1500 })))
+```
+
+The `VectorStore` interface has two implementations verified by one shared
+contract suite: in-memory, and PGlite (WASM Postgres + pgvector via
+Drizzle) behind the opt-in `rxjs-llm/pglite` subpath — importing it is what
+adds those dependencies; the core stays rxjs-only.
+
 ## Errors are typed
 
 ```
@@ -240,7 +269,7 @@ mid-`data:`, mid-UTF-8-codepoint, between CR and LF).
 | 1 — Models | `ChatModel`, adapters, transport, resilience operators | ✅ v0.1.0 |
 | 2 — Prompts | typed templates, compile-time-checked placeholders | ✅ v0.2.0 |
 | 3 — Chains | stages as operators, typed accumulating context | ✅ v0.3.0 |
-| 4 — Indexes | loaders, splitter, embeddings, vector stores, retriever | planned |
+| 4 — Indexes | loaders, splitter, embeddings, vector stores, retriever | ✅ v0.4.0 |
 | 5 — Memory | conversation memory as fold + views | planned |
 | 6 — Agents | tool loop as `expand()`, Zod tools, safety rails | planned |
 
