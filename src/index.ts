@@ -29,5 +29,8 @@ export {
   type FetchStreamInit,
 } from './transport/fetch-stream';
 export { parseSse, type SseEvent } from './transport/sse';
+export { parseNdjson } from './transport/ndjson';
 
 export { anthropic, type AnthropicConfig } from './adapters/anthropic';
+export { openai, type OpenAiConfig } from './adapters/openai';
+export { ollama, type OllamaConfig } from './adapters/ollama';
