@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { memoryStore } from '../../src/index/store/memory';
 import { storeContractTests } from './store-contract';
 
+// the memory store is dimension-agnostic; the factory input is for pgvector
 storeContractTests('memory', () => Promise.resolve({ store: memoryStore() }));
 
 describe('memoryStore specifics', () => {

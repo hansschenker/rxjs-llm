@@ -9,7 +9,8 @@
     "url": "https://github.com/hansschenker/rxjs-llm.git"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./pglite": "./src/index/store/pglite.ts"
   },
   "scripts": {
     "test": "vitest run",
@@ -20,7 +21,10 @@
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "@electric-sql/pglite-pgvector": "^0.0.5",
     "@types/node": "^26.1.0",
+    "drizzle-orm": "^0.45.2",
     "fast-check": "^4.8.0",
     "typescript": "^5.5.0",
     "vitest": "^2.1.0"
