@@ -1,29 +1,23 @@
 # STATUS
 
-**Current module:** 4 — Indexes / RAG — **complete, tagged v0.4.0**
-**Next:** Module 5 — Memory (small), then Module 6 — Agents (the capstone).
-See `rxjs-llm-module-plans.md`.
+**Current module:** 5 — Memory — **complete, tagged v0.5.0**
+**Next:** Module 6 — Agents / tool use — the capstone. Its final test
+(retrieve → agent → memory, composed as a chain, against the mock server)
+is the repo's definition of done. See `rxjs-llm-module-plans.md`.
 
-## Module 4 phase checklist
+## Module 5 phase checklist
 
-- [x] Phase 1 — Splitter: pure, lossless, offset-carrying; property tests
-      for partition/budget/surrogates. Tokenizer interface, chars/4
-      default, no tiktoken. ADR-0014.
-- [x] Phase 2 — In-memory vector store + the shared contract suite (the
-      store law tests). ADR-0015.
-- [x] Phase 3 — Embedder interface (openai + ollama adapters), fetchJson
-      transport sibling, embedBatched (bufferCount + rateLimit +
-      concatMap, marble-tested). ADR-0016.
-- [x] Phase 4 — Loaders: text-file (dynamic node:fs), web (fetchStream +
-      crude extraction), json. Fixture corpus added. ADR-0017.
-- [x] Phase 5 — PGlite + pgvector via Drizzle, opt-in `rxjs-llm/pglite`
-      subpath, contract suite generalized to fixed dimensions. ADR-0018.
-- [x] Phase 6 — retrieveContext (one operator), upsertInto/ingest,
-      end-to-end retrieval over the fixture corpus with a real
-      (deterministic bag-of-words) embedding. ADR-0019.
+- [x] Phases 1+2 — Core reducer (scan over the turn stream) + full/window/
+      token-budget views; reactivity and suffix/budget/pairing properties.
+      ADR-0020 (D5.1), ADR-0021 (D5.3).
+- [x] Phase 3 — summaryView: the async fold — eventually consistent,
+      exhaustMap-non-overlapping (with the observeOn re-trigger fix),
+      failure-tolerant, abortable via dispose(). ADR-0022 (D5.2).
+- [x] Phase 4 — snapshot/restore with the equivalence property; turns are
+      truth, derived state is not snapshotted. ADR-0023 (D5.4).
 
-230 tests, all green; strict `tsc` clean. Core runtime dependency: `rxjs`
-only (pglite/drizzle are opt-in via subpath, dev-installed here).
+252 tests, all green; strict `tsc` clean. Core runtime dependency: `rxjs`
+only (pglite/drizzle remain opt-in via subpath).
 
 ## Modules
 
@@ -33,7 +27,7 @@ only (pglite/drizzle are opt-in via subpath, dev-installed here).
 | 2 | Prompts | **done — v0.2.0** |
 | 3 | Chains | **done — v0.3.0** |
 | 4 | Indexes / RAG | **done — v0.4.0** |
-| 5 | Memory | planned |
+| 5 | Memory | **done — v0.5.0** |
 | 6 | Agents / tool use | planned |
 
-Full plans: `rxjs-llm-module-plans.md`. Decisions: `decisions/` (19 ADRs).
+Full plans: `rxjs-llm-module-plans.md`. Decisions: `decisions/` (23 ADRs).

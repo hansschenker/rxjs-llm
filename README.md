@@ -239,6 +239,32 @@ contract suite: in-memory, and PGlite (WASM Postgres + pgvector via
 Drizzle) behind the opt-in `rxjs-llm/pglite` subpath — importing it is what
 adds those dependencies; the core stays rxjs-only.
 
+## Memory is a fold
+
+One reducer (a `scan` over the turn stream), swappable views. ~150 lines —
+the value is the design:
+
+```ts
+import { createMemory, summaryView, tokenBudgetView, windowView } from 'rxjs-llm';
+
+const summary = summaryView(model, undefined, { foldAfter: 12, keepRecent: 2 });
+const memory = createMemory({ view: summary });
+
+memory.record({ user: question, assistant: answer });
+memory.view();        // Observable<ChatMessage[]> — reactive, updates per record
+summary.pending$;     // true while a summarization fold is in flight
+
+// splice into a message prompt's history slot (Module 2):
+model.stream(qa({ question }).withHistory(history));
+```
+
+Views: `fullView()`, `windowView(n)`, `tokenBudgetView(n)` (whole turns,
+oldest-first eviction), and `summaryView(model)` — an async fold that is
+eventually consistent (the conversation never blocks on summarization),
+never overlaps folds, degrades to raw turns on summarizer failure, and
+aborts cleanly on `dispose()`. Persistence is `snapshot()`/`restore` only:
+turns are the truth, views are projections, hosts persist however they like.
+
 ## Errors are typed
 
 ```
@@ -270,7 +296,7 @@ mid-`data:`, mid-UTF-8-codepoint, between CR and LF).
 | 2 — Prompts | typed templates, compile-time-checked placeholders | ✅ v0.2.0 |
 | 3 — Chains | stages as operators, typed accumulating context | ✅ v0.3.0 |
 | 4 — Indexes | loaders, splitter, embeddings, vector stores, retriever | ✅ v0.4.0 |
-| 5 — Memory | conversation memory as fold + views | planned |
+| 5 — Memory | conversation memory as fold + views | ✅ v0.5.0 |
 | 6 — Agents | tool loop as `expand()`, Zod tools, safety rails | planned |
 
 Design decisions live in `decisions/`; scope boundaries in `NON_GOALS.md`;
