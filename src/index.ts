@@ -38,3 +38,13 @@ export { ollama, type OllamaConfig } from './adapters/ollama';
 export { retryWithBackoff, type RetryBackoffOptions } from './operators/retry-backoff';
 export { streamTimeout, type StreamTimeoutOptions } from './operators/stream-timeout';
 export { rateLimit, type RateLimitOptions } from './operators/rate-limit';
+
+export {
+  chain,
+  type ChainBuilder,
+  type ChainRun,
+  type RunnableChain,
+} from './chain/chain';
+export { stage, type EmitFn } from './chain/stage';
+export { collectText } from './chain/collect-text';
+export type { ChainEvent } from './chain/events';

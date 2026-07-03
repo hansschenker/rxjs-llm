@@ -155,6 +155,12 @@ qa({ question, context }); // => ChatMessage[]
 - Property test: for random variable maps, interpolation then extraction round-trips.
 - Escaping edge cases: adjacent placeholders, braces in values, unicode.
 
+D2.2/D2.3 review notes" block under Module 2, phrased prescriptively:
+
+prompt must use a <T extends string>(template: T) signature (not plain string) so literal types survive without as const; type tests must use expectTypeOf(...).toEqualTypeOf<...>() — exact match, not toMatchTypeOf — otherwise silent degradation to Record<string, ...> passes undetected.
+ExtractVars must handle the {{ escape before the variable branch, with a @ts-expect-error test proving {{foo}} demands no key.
+Split the tagged-literal form and the parsed-string form into two exports (prompt tagged, promptTemplate parsed, or similar) — no shared overload; cite the streamTimeout overload incident as precedent.
+Decide the history-slot representation now, and decide it as withHistory() on the built prompt — Module 3's collectText example already assumes that shape, and Module 5 consumes it.
 ---
 
 ## Module 3 — Chains (composition)
@@ -273,6 +279,19 @@ latch assertion: after a *failed* run, subscribe `result$` a second time (or
 pipe it through `retry(1)`) and assert the request counter has not moved and
 the same error object surfaces. With that, the latch is pinned the same way
 the AbortSignal test pins teardown.
+
+**Implementation status (2026-07-03):** D3.3 is implemented ahead of the rest
+of Module 3 — `src/chain/{chain,stage,collect-text,events}.ts`, ADR-0006,
+unit tests in `test/chain/run-channels.test.ts`, pinning test over real HTTP
+in `test/chain/pinning.test.ts`. One deviation from the shape above,
+discovered during implementation: bare `share()` cannot express the whole
+contract even fully latched, because `resetOnRefCountZero: false` also means
+an *abandoned* run keeps executing — nothing aborts the in-flight provider
+call (teardown-law violation) — while `true` re-executes on resubscription
+after abandonment. The shipped latch is hand-rolled (~20 lines of explicit
+refcounting in `runChain`): refcount-zero-before-terminal aborts the
+execution AND latches the run as cancelled; late subscribers to a cancelled
+run get an immediate empty completion, never a re-run. See ADR-0006 §4.
 
 **D3.4 — Tracing as an operator, not a framework.** `traced(name)` — a `tap`-based
 operator attaching correlation IDs, timestamps, and stage names to a pluggable sink

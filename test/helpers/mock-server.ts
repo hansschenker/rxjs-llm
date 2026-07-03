@@ -18,13 +18,17 @@ export interface MockServer {
   url: string;
   /** URLs of requests the client aborted before the response finished. */
   aborted: string[];
+  /** URL of every request received, in arrival order — the D3.3 pinning counter. */
+  requests: string[];
   close(): Promise<void>;
 }
 
 export async function startMockServer(): Promise<MockServer> {
   const aborted: string[] = [];
+  const requests: string[] = [];
 
   const server = createServer((req, res) => {
+    requests.push(req.url ?? '');
     let body = '';
     req.on('data', (chunk: Buffer) => {
       body += chunk.toString('utf8');
@@ -57,6 +61,7 @@ export async function startMockServer(): Promise<MockServer> {
   return {
     url: `http://127.0.0.1:${port}`,
     aborted,
+    requests,
     close: () =>
       new Promise((resolve) => {
         server.closeAllConnections();
