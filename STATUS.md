@@ -1,7 +1,7 @@
 # STATUS
 
-**Current module:** 1 — Uniform Model Interface
-**Current phase:** 6 of 6 (integration tests + README)
+**Current module:** 1 — Uniform Model Interface — **complete, tagged v0.1.0**
+**Next:** Module 2 — Prompts (see `rxjs-llm-module-plans.md`)
 
 ## Module 1 phase checklist
 
@@ -10,13 +10,15 @@
 - [x] Phase 3 — Anthropic adapter, full event mapping incl. tool-use and in-stream errors.
 - [x] Phase 4 — OpenAI + Ollama adapters; NDJSON framing joins the transport layer.
 - [x] Phase 5 — Resilience operators: `retryWithBackoff`, `streamTimeout`, `rateLimit`.
-- [ ] Phase 6 — Mock provider server integration tests, README with per-provider examples, tag `v0.1.0`.
+- [x] Phase 6 — Mock provider server integration tests, README with per-provider examples.
+
+93 tests, all green; strict `tsc` clean. Sole runtime dependency: `rxjs`.
 
 ## Modules
 
 | # | Module | Status |
 |---|--------|--------|
-| 1 | Uniform Model Interface | in progress |
+| 1 | Uniform Model Interface | **done — v0.1.0** |
 | 2 | Prompts | planned |
 | 3 | Chains | planned |
 | 4 | Indexes / RAG | planned |
