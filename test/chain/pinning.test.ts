@@ -105,4 +105,36 @@ describe('D3.3 pinning test', () => {
     expect(events.some((e) => e.type === 'run_complete' || e.type === 'run_failed')).toBe(false);
     expect(anyError).toBe(false); // cancellation is silent on both channels
   });
+
+  it('latch race: straggler frames the server sends after the abort never overwrite the cancelled state', async () => {
+    const { result$, progress$ } = answerChain(`${server.url}/anthropic`).run({
+      question: '[straggler] finish without me',
+    });
+    const events: ChainEvent[] = [];
+    let progressCompleted = false;
+    let anyError = false;
+    progress$.subscribe({
+      next: (e) => events.push(e),
+      complete: () => (progressCompleted = true),
+      error: () => (anyError = true),
+    });
+    const subscription = result$.subscribe({ error: () => (anyError = true) });
+
+    await vi.waitFor(() => expect(events.length).toBeGreaterThan(0)); // stream flowing
+    subscription.unsubscribe();
+    await vi.waitFor(() => expect(server.aborted).toContain(messagesUrl));
+    // give the server time to attempt its tail frames (message_stop included)
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    expect(anyError).toBe(false);
+    expect(progressCompleted).toBe(true);
+    // first-writer-wins: no terminal event materialized from the straggler tail
+    expect(events.some((e) => e.type === 'run_complete' || e.type === 'run_failed')).toBe(false);
+    // and the cancelled latch is intact — a late arrival gets empty completion, not a value
+    let lateValue: unknown;
+    let lateCompleted = false;
+    result$.subscribe({ next: (v) => (lateValue = v), complete: () => (lateCompleted = true) });
+    await vi.waitFor(() => expect(lateCompleted).toBe(true));
+    expect(lateValue).toBeUndefined();
+  });
 });

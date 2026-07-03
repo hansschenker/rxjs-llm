@@ -42,12 +42,15 @@ export async function startMockServer(): Promise<MockServer> {
         messages?: { role: string; content: unknown }[];
       };
       const prompt = lastUserContent(request);
-      const reply = `echo: ${prompt.replace('[slow] ', '')}`;
+      const reply = `echo: ${prompt.replace('[slow] ', '').replace('[straggler] ', '')}`;
       const slow = prompt.includes('[slow]');
+      // [straggler]: stall like [slow], but when the client aborts, attempt
+      // to write the tail frames anyway — the latch-race fixture variant.
+      const straggler = prompt.includes('[straggler]');
       const model = request.model ?? 'mock-model';
 
       void (req.url === '/anthropic/v1/messages'
-        ? serveAnthropic(res, model, reply, slow)
+        ? serveAnthropic(res, model, reply, slow || straggler, straggler)
         : req.url === '/openai/v1/chat/completions'
           ? serveOpenAi(res, model, reply, slow)
           : req.url === '/ollama/api/chat'
@@ -94,10 +97,15 @@ async function serveAnthropic(
   model: string,
   reply: string,
   slow: boolean,
+  attemptTailAfterAbort = false,
 ): Promise<void> {
   res.writeHead(200, { 'content-type': 'text/event-stream' });
   const sse = (event: string, data: unknown): void => {
-    if (!res.destroyed) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    } catch {
+      /* socket already gone — the straggler frame goes nowhere */
+    }
   };
   const half = Math.ceil(reply.length / 2);
 
@@ -116,7 +124,7 @@ async function serveAnthropic(
     delta: { type: 'text_delta', text: reply.slice(0, half) },
   });
   await delay(slow ? STALL_MS : 2, res);
-  if (res.destroyed) return;
+  if (res.destroyed && !attemptTailAfterAbort) return;
   sse('content_block_delta', {
     type: 'content_block_delta',
     index: 0,
@@ -129,7 +137,11 @@ async function serveAnthropic(
     usage: { output_tokens: 7 },
   });
   sse('message_stop', { type: 'message_stop' });
-  res.end();
+  try {
+    res.end();
+  } catch {
+    /* already torn down */
+  }
 }
 
 async function serveOpenAi(

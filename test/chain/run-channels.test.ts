@@ -137,6 +137,36 @@ describe('D3.3 point 2 — lifecycle coupling and terminal events', () => {
     expect(lateCompleted).toBe(true);
     expect(lateValue).toBeUndefined();
   });
+
+  it('straggler emissions after cancellation are discarded, never latched over the cancelled state', async () => {
+    const built = chain<{ q: string }>().pipe(
+      stage('straggler', () =>
+        new Observable<{ a: number }>((sub) => {
+          // deliberately NOT cleared on teardown: the async work outlives
+          // the unsubscribe and fires into the closed subscription
+          setTimeout(() => {
+            sub.next({ a: 1 });
+            sub.complete();
+          }, 15);
+        }),
+      ),
+    );
+    const { result$, progress$ } = built.run({ q: 'x' });
+    const events: ChainEvent[] = [];
+    progress$.subscribe((e) => events.push(e));
+    const subscription = result$.subscribe();
+    await tick(5);
+    subscription.unsubscribe(); // cancel BEFORE the inner observable emits
+    await tick(30); // let the straggler fire
+
+    expect(events).toEqual([]); // no terminal event materialized after the fact
+    let lateValue: unknown;
+    let lateCompleted = false;
+    result$.subscribe({ next: (v) => (lateValue = v), complete: () => (lateCompleted = true) });
+    await tick();
+    expect(lateValue).toBeUndefined(); // cancelled latch intact — not overwritten
+    expect(lateCompleted).toBe(true);
+  });
 });
 
 describe('D3.3 point 3 — unobserved progress events are dropped', () => {
@@ -182,13 +212,15 @@ describe('D3.3 point 4 — one run() = one execution, outcome latched', () => {
     expect(finals[0]).toEqual(finals[1]);
   });
 
-  it('after completion, a late subscriber gets the latched final context without re-executing', async () => {
+  it('after completion, a late subscriber gets the latched final context — same object, no re-execution', async () => {
     const { built, executions } = countingChain();
     const { result$ } = built.run({ q: 'x' });
     const first = await new Promise((resolve) => result$.subscribe(resolve));
     const second = await new Promise((resolve) => result$.subscribe(resolve));
     expect(executions()).toBe(1);
-    expect(second).toEqual(first);
+    // identity, mirroring the error latch: success and cancellation stay
+    // distinguishable to late arrivals (value vs. empty completion)
+    expect(second).toBe(first);
   });
 
   it('after a failed run, retry() hits the latched error — same object, no new execution', async () => {

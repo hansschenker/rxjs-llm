@@ -116,6 +116,10 @@ export function chain<In extends object>(): ChainBuilder<In> {
  *    with true, resubscribing after abandonment silently re-executes. Here
  *    refcount-zero-before-terminal aborts AND latches: late subscribers to
  *    a cancelled run get an immediate empty completion, never a re-run.
+ *    The latch is first-writer-wins: `settled` guards both directions, and
+ *    straggler emissions after an abort die against two rxjs walls — a
+ *    closed subscription discards next/complete, and a completed Subject
+ *    ignores next().
  *
  * Execution is subscribed on the asap scheduler so a fully-synchronous
  * stage still cannot emit in the first subscriber's call frame (no Zalgo).
