@@ -116,6 +116,60 @@ const sub = model.stream(messages).subscribe(render);
 sub.unsubscribe(); // aborts the fetch; no error fires anywhere
 ```
 
+## Typed prompts
+
+Placeholders are extracted **at the type level** — missing or extra
+variables are compile errors, not runtime surprises:
+
+```ts
+import { promptTemplate, prompt } from 'rxjs-llm';
+
+const summarize = promptTemplate('Summarize {doc} in {n} bullets, plain language.');
+summarize({ doc: text, n: 5 });   // => string
+summarize({ doc: text });         // ✗ compile error: 'n' is missing
+summarize({ doc, n: 5, x: 1 });   // ✗ compile error: 'x' is not a placeholder
+```
+
+Two forms, two escape rules: the parsed form above uses `{{`/`}}` for
+literal braces; the tagged form takes placeholder names from the
+interpolations and needs no escapes at all:
+
+```ts
+const qa = prompt`Answer ${'question'} using only ${'context'}.`;
+qa({ question, context }); // exact same compile-time checking
+```
+
+Message prompts assemble a full `ChatMessage[]` — system turn, few-shot
+examples, a history slot, and the user turn:
+
+```ts
+import { messagePrompt } from 'rxjs-llm';
+
+const ask = messagePrompt({
+  system: 'Answer only from the provided context. Say "unknown" otherwise.',
+  fewShot: [{ user: 'Q: capital of France? Context: ...', assistant: 'Paris' }],
+  user: 'Q: {question}\nContext: {context}',
+});
+
+model.stream(ask({ question, context }));                       // plain ChatMessage[]
+model.stream(ask({ question, context }).withHistory(history));  // memory splices in
+```
+
+`withHistory` is pure and splices between the few-shot block and the final
+user turn — examples stay pinned to the system prompt, the question stays
+last. Format helpers are plain string transformers:
+
+```ts
+import { asBullets, asJson, noJargon } from 'rxjs-llm';
+
+noJargon()(asBullets(3)(summarize({ doc, n: 3 })));
+const format = asJson(schema); // renders the JSON Schema into the prompt,
+format(extractPrompt);         // carries .schema for parsing later
+```
+
+Everything in the prompt layer is pure — no I/O, no Observables. Streams
+enter only when a chain feeds a prompt's output to a `ChatModel`.
+
 ## Errors are typed
 
 ```
@@ -144,8 +198,8 @@ mid-`data:`, mid-UTF-8-codepoint, between CR and LF).
 | Module | Contents | Status |
 |--------|----------|--------|
 | 1 — Models | `ChatModel`, adapters, transport, resilience operators | ✅ v0.1.0 |
-| 2 — Prompts | typed templates, compile-time-checked placeholders | planned |
-| 3 — Chains | stages as operators, typed accumulating context | planned |
+| 2 — Prompts | typed templates, compile-time-checked placeholders | ✅ v0.2.0 |
+| 3 — Chains | stages as operators, typed accumulating context | dual-channel `run()` shipped (ADR-0006); rest planned |
 | 4 — Indexes | loaders, splitter, embeddings, vector stores, retriever | planned |
 | 5 — Memory | conversation memory as fold + views | planned |
 | 6 — Agents | tool loop as `expand()`, Zod tools, safety rails | planned |

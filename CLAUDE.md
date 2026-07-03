@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-`rxjs-llm` is a reference implementation of LLM orchestration primitives built directly on RxJS — "LangChain in ~2,500 lines" — and doubles as a book artifact. The full design lives in `rxjs-llm-module-plans.md`; read the relevant module section there before implementing anything. Check `STATUS.md` for which modules are done (Module 1 shipped as v0.1.0).
+`rxjs-llm` is a reference implementation of LLM orchestration primitives built directly on RxJS — "LangChain in ~2,500 lines" — and doubles as a book artifact. The full design lives in `rxjs-llm-module-plans.md`; read the relevant module section there before implementing anything. Check `STATUS.md` for which modules are done and what was pulled forward.
 
 Six modules, all in this one repo:
 
