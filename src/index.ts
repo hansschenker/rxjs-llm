@@ -62,6 +62,14 @@ export {
 } from './prompt/messages';
 
 export {
+  asBullets,
+  asJson,
+  noJargon,
+  type FormatInstruction,
+  type JsonFormat,
+} from './prompt/format';
+
+export {
   chain,
   type ChainBuilder,
   type ChainRun,
