@@ -224,9 +224,37 @@ answer all four explicitly, with a test per answer):
    control, not a feature, and every consumer would have to filter or render
    interleaved garbage. Implementation shape: `run()` stays lazy (nothing
    happens before the first `result$` subscription — laziness is the law
-   worth keeping) but multicasts after it: `connectable()` or
-   `share({ resetOnRefCountZero: false })`, plus `shareReplay(1)` if late
-   `result$` subscribers should receive the final context. Reconciliation
+   worth keeping) but multicasts after it, with **all three reset flags
+   latched**:
+
+   ```ts
+   share({
+     resetOnRefCountZero: false,
+     resetOnError: false,
+     resetOnComplete: false,
+   })
+   ```
+
+   `resetOnRefCountZero: false` alone is a trap: `resetOnError` and
+   `resetOnComplete` both default to `true`, so after the chain errors the
+   shared subject resets and the next subscription starts a fresh execution
+   — and "the next subscription" is exactly what `retry()` produces. An
+   innocent `result$.pipe(retry(2))` would silently re-run the entire chain
+   (three sets of LLM calls) through the back door this point exists to
+   close; same story for `repeat()` via `resetOnComplete`. With the latch,
+   the execution's outcome — value, error, or completion — is permanent for
+   that `run()`: a `retry()` resubscribes, hits the latched error, and
+   re-errors immediately. Deterministic, cheap, and semantically honest,
+   because the ADR's answer to "how do I retry a chain?" is *a new `run()`
+   call* — whole-chain retry is
+   `defer(() => chain.run(input).result$).pipe(retry(2))`, where the
+   re-execution is syntactically visible in the defer. Per-stage retry
+   belongs inside the stage via Module 1's `retryWithBackoff`, which is
+   almost always what the consumer actually wanted. (If late `result$`
+   subscribers should receive the final context, use a `ReplaySubject(1)`
+   connector inside the same latched `share` — a latched Subject already
+   re-delivers the terminal error to late subscribers; the replay connector
+   additionally re-delivers the final value.) Reconciliation
    with Module 1, for the ADR verbatim: the cold/unicast law applies where
    the Observable *is* the request and resubscription is the retry
    mechanism; `run(input)` is an application of arguments to a workflow, and
@@ -240,7 +268,11 @@ test, covering points 1, 3, and 4 in one assertion set: stagger two `result$`
 subscriptions, the second mid-flight; assert via the mock server's request
 counter that exactly one set of provider requests was issued, that both
 subscribers receive the final context, and that `progress$` carried events
-from exactly one execution, ending in exactly one terminal event.
+from exactly one execution, ending in exactly one terminal event. Plus the
+latch assertion: after a *failed* run, subscribe `result$` a second time (or
+pipe it through `retry(1)`) and assert the request counter has not moved and
+the same error object surfaces. With that, the latch is pinned the same way
+the AbortSignal test pins teardown.
 
 **D3.4 — Tracing as an operator, not a framework.** `traced(name)` — a `tap`-based
 operator attaching correlation IDs, timestamps, and stage names to a pluggable sink
