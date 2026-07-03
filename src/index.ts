@@ -50,6 +50,18 @@ export {
 } from './prompt/template';
 
 export {
+  assistant,
+  fewShot,
+  messagePrompt,
+  system,
+  user,
+  type AppliedMessages,
+  type FewShotPair,
+  type MessagePromptFn,
+  type MessagePromptSpec,
+} from './prompt/messages';
+
+export {
   chain,
   type ChainBuilder,
   type ChainRun,
