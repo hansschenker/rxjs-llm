@@ -34,3 +34,7 @@ export { parseNdjson } from './transport/ndjson';
 export { anthropic, type AnthropicConfig } from './adapters/anthropic';
 export { openai, type OpenAiConfig } from './adapters/openai';
 export { ollama, type OllamaConfig } from './adapters/ollama';
+
+export { retryWithBackoff, type RetryBackoffOptions } from './operators/retry-backoff';
+export { streamTimeout, type StreamTimeoutOptions } from './operators/stream-timeout';
+export { rateLimit, type RateLimitOptions } from './operators/rate-limit';

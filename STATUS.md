@@ -1,7 +1,7 @@
 # STATUS
 
 **Current module:** 1 — Uniform Model Interface
-**Current phase:** 5 of 6 (resilience operators)
+**Current phase:** 6 of 6 (integration tests + README)
 
 ## Module 1 phase checklist
 
@@ -9,7 +9,7 @@
 - [x] Phase 2 — Transport: `fetchStream` (teardown-tested), SSE parser (adversarial fixtures).
 - [x] Phase 3 — Anthropic adapter, full event mapping incl. tool-use and in-stream errors.
 - [x] Phase 4 — OpenAI + Ollama adapters; NDJSON framing joins the transport layer.
-- [ ] Phase 5 — Resilience operators: `retryWithBackoff`, `streamTimeout`, `rateLimit`.
+- [x] Phase 5 — Resilience operators: `retryWithBackoff`, `streamTimeout`, `rateLimit`.
 - [ ] Phase 6 — Mock provider server integration tests, README with per-provider examples, tag `v0.1.0`.
 
 ## Modules
