@@ -40,6 +40,16 @@ export { streamTimeout, type StreamTimeoutOptions } from './operators/stream-tim
 export { rateLimit, type RateLimitOptions } from './operators/rate-limit';
 
 export {
+  prompt,
+  promptTemplate,
+  renderTemplate,
+  templateVars,
+  type ExtractVars,
+  type PromptFn,
+  type PromptVars,
+} from './prompt/template';
+
+export {
   chain,
   type ChainBuilder,
   type ChainRun,
