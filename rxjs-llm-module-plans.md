@@ -199,20 +199,48 @@ answer all four explicitly, with a test per answer):
    from one shared pipeline where either subscription starts it — is a
    re-execution bug waiting to happen.)
 2. *Lifecycle coupling.* `progress$` completes/tears down when `result$`
-   completes, errors, or is unsubscribed — all three. The error itself
-   travels on `result$` only; `progress$` completes quietly (one failure must
-   not fire two error handlers). Unsubscribe produces no error on either
-   channel — cancellation stays silent, per the Module 1 contract (ADR-0005).
+   completes, errors, or is unsubscribed — all three. The error *object*
+   travels on `result$` only, but `progress$` announces the outcome as data
+   before completing: a terminal `run_complete` (success) or `run_failed`
+   (failure) event — a `next`, not an error notification — then completion.
+   This keeps "one failure, one error handler" while fixing the
+   pure-completion variant's real problem: a progress-only UI otherwise sees
+   the token stream freeze with no way to distinguish "run died" from "stage
+   is slow." The symmetry gives consumers a uniform "this run is over, stop
+   rendering the cursor" signal regardless of outcome. Invariant to test:
+   every `progress$` stream that terminates on its own ends with exactly one
+   terminal event (`run_complete | run_failed`) followed by completion.
+   Cancellation is the stated exception: unsubscribe is silent teardown on
+   both channels — no terminal event, no error (ADR-0005).
 3. *No-subscriber case.* Progress events with nobody listening are **dropped**
    (plain Subject semantics) — correct for a UI channel, but it is a stated
    decision, not an accident: no buffering, no replay. Subscribe to
    `progress$` before subscribing `result$` to see everything.
-4. *Re-run semantics.* If `result$` is cold, a second subscription re-runs the
-   chain and `progress$` would interleave events from two executions. The ADR
-   must pick: one `run()` call = one logical execution (multicast `result$`
-   within the run), or cold-multi with correlation-id-tagged progress events.
-   Reconcile explicitly with the Module 1 cold/unicast law — chains are a
-   different API surface, and the ADR should say why.
+4. *Re-run semantics — one `run()` call = one logical execution.* This is
+   forced, not merely preferred: cold-multi is inconsistent with point 1.
+   `progress$` is a passive Subject fed by whatever execution `result$`
+   drives, so a second cold subscription would pump a second execution's
+   events into the *same* Subject — correlation-id tagging would be damage
+   control, not a feature, and every consumer would have to filter or render
+   interleaved garbage. Implementation shape: `run()` stays lazy (nothing
+   happens before the first `result$` subscription — laziness is the law
+   worth keeping) but multicasts after it: `connectable()` or
+   `share({ resetOnRefCountZero: false })`, plus `shareReplay(1)` if late
+   `result$` subscribers should receive the final context. Reconciliation
+   with Module 1, for the ADR verbatim: the cold/unicast law applies where
+   the Observable *is* the request and resubscription is the retry
+   mechanism; `run(input)` is an application of arguments to a workflow, and
+   re-execution of that size must be syntactically visible — a second
+   `run()` call — never a silent consequence of a second subscription.
+   Unicast was a consequence in Module 1, not the point; laziness is the
+   point, and it survives.
+
+**The pinning test** — D3.3's counterpart of Module 1's AbortSignal teardown
+test, covering points 1, 3, and 4 in one assertion set: stagger two `result$`
+subscriptions, the second mid-flight; assert via the mock server's request
+counter that exactly one set of provider requests was issued, that both
+subscribers receive the final context, and that `progress$` carried events
+from exactly one execution, ending in exactly one terminal event.
 
 **D3.4 — Tracing as an operator, not a framework.** `traced(name)` — a `tap`-based
 operator attaching correlation IDs, timestamps, and stage names to a pluggable sink
