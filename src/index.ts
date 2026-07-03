@@ -30,6 +30,7 @@ export {
 } from './transport/fetch-stream';
 export { parseSse, type SseEvent } from './transport/sse';
 export { parseNdjson } from './transport/ndjson';
+export { fetchJson } from './transport/fetch-json';
 
 export { anthropic, type AnthropicConfig } from './adapters/anthropic';
 export { openai, type OpenAiConfig } from './adapters/openai';
@@ -85,6 +86,15 @@ export type {
   VectorStore,
 } from './index/store/types';
 export { memoryStore } from './index/store/memory';
+
+export type { Embedder } from './index/embed/types';
+export { openaiEmbedder, type OpenAiEmbedderConfig } from './index/embed/openai';
+export { ollamaEmbedder, type OllamaEmbedderConfig } from './index/embed/ollama';
+export {
+  embedBatched,
+  type EmbedBatchedOptions,
+  type EmbeddedChunk,
+} from './index/embed/batch';
 
 export {
   chain,
