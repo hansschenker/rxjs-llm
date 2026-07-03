@@ -76,7 +76,14 @@ export {
   type ChainRun,
   type RunnableChain,
 } from './chain/chain';
-export { stage, type EmitFn, type StageFn } from './chain/stage';
+export {
+  stage,
+  stages,
+  type EmitFn,
+  type MergedPatch,
+  type ParallelBranches,
+  type StageFn,
+} from './chain/stage';
 export {
   collectorSink,
   consoleSink,

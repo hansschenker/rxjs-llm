@@ -1,7 +1,10 @@
 import {
   concatMap,
   defer,
+  forkJoin,
+  map,
   mergeMap,
+  of,
   toArray,
   type Observable,
   type ObservableInput,
@@ -80,9 +83,66 @@ function mergePatches<Ctx extends object, P extends object>(
  * Used outside a chain, `emit` is a no-op and nothing is traced; inside,
  * both ride the context under hidden symbol keys.
  */
-export function stage<Ctx extends object, P extends object>(
+function stageFn<Ctx extends object, P extends object>(
   name: string,
   fn: StageFn<Ctx, P>,
 ): OperatorFunction<Ctx, Ctx & P> {
   return concatMap((ctx: Ctx) => mergePatches(runBody(name, fn, ctx), ctx));
 }
+
+/**
+ * Conditional stage — an `if` inside concatMap, not a new abstraction
+ * (ADR-0011). When the predicate is false the context passes through
+ * untouched, so the output type is honestly `Ctx & Partial<P>`:
+ * downstream must handle the keys' absence. A skipped stage emits no
+ * progress and no trace events — nothing ran.
+ */
+function when<Ctx extends object, P extends object>(
+  name: string,
+  predicate: (ctx: Ctx) => boolean,
+  fn: StageFn<Ctx, P>,
+): OperatorFunction<Ctx, Ctx & Partial<P>> {
+  return concatMap((ctx: Ctx) =>
+    predicate(ctx)
+      ? mergePatches(runBody(name, fn, ctx), ctx)
+      : of(ctx as Ctx & Partial<P>),
+  );
+}
+
+export const stage = Object.assign(stageFn, { when });
+
+type UnionToIntersection<U> = (U extends unknown ? (x: U) => void : never) extends (
+  x: infer I,
+) => void
+  ? I
+  : never;
+
+// eslint-style note: `any[]` is required for contravariant parameter inference.
+type PatchOf<F> = F extends (...args: any[]) => ObservableInput<infer P> ? P : never;
+
+export type ParallelBranches<Ctx extends object> = Record<string, StageFn<Ctx, object>>;
+
+export type MergedPatch<B> = UnionToIntersection<PatchOf<B[keyof B]>>;
+
+/**
+ * Parallel fan-out — forkJoin inside one concatMap (ADR-0011). Every
+ * branch runs concurrently against the SAME pre-join context: a branch
+ * cannot see a sibling's patch (enforced at the type level). The joined
+ * patch is the intersection of all branches' patches; on runtime key
+ * collision the later branch (declaration order) wins. Each branch emits
+ * progress and traces under its own key as the stage name; forkJoin takes
+ * each branch's LAST value as its patch.
+ */
+function parallel<Ctx extends object, B extends ParallelBranches<Ctx>>(
+  branches: B,
+): OperatorFunction<Ctx, Ctx & MergedPatch<B>> {
+  return concatMap((ctx: Ctx) => {
+    const keys = Object.keys(branches);
+    if (keys.length === 0) return of(ctx as Ctx & MergedPatch<B>);
+    return forkJoin(keys.map((key) => runBody(key, branches[key]!, ctx))).pipe(
+      map((patches) => Object.assign({}, ctx, ...patches) as Ctx & MergedPatch<B>),
+    );
+  });
+}
+
+export const stages = { parallel };
