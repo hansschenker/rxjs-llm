@@ -29,3 +29,5 @@ export {
   type FetchStreamInit,
 } from './transport/fetch-stream';
 export { parseSse, type SseEvent } from './transport/sse';
+
+export { anthropic, type AnthropicConfig } from './adapters/anthropic';
