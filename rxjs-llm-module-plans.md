@@ -190,6 +190,30 @@ stages receive a second argument `emit: (e: StreamEvent) => void` wired to a
 This is the design decision most worth an ADR — it is where LangChain's callback
 system lives, and where yours will be cleaner.
 
+**ADR checklist for D3.3** (review points, captured 2026-07-03 — the ADR must
+answer all four explicitly, with a test per answer):
+
+1. *Passivity.* `progress$` never triggers execution. Subscribing to it alone
+   does nothing; only `result$` drives the work. Test: subscribe `progress$`,
+   assert zero stage invocations. (The wrong wiring — deriving both channels
+   from one shared pipeline where either subscription starts it — is a
+   re-execution bug waiting to happen.)
+2. *Lifecycle coupling.* `progress$` completes/tears down when `result$`
+   completes, errors, or is unsubscribed — all three. The error itself
+   travels on `result$` only; `progress$` completes quietly (one failure must
+   not fire two error handlers). Unsubscribe produces no error on either
+   channel — cancellation stays silent, per the Module 1 contract (ADR-0005).
+3. *No-subscriber case.* Progress events with nobody listening are **dropped**
+   (plain Subject semantics) — correct for a UI channel, but it is a stated
+   decision, not an accident: no buffering, no replay. Subscribe to
+   `progress$` before subscribing `result$` to see everything.
+4. *Re-run semantics.* If `result$` is cold, a second subscription re-runs the
+   chain and `progress$` would interleave events from two executions. The ADR
+   must pick: one `run()` call = one logical execution (multicast `result$`
+   within the run), or cold-multi with correlation-id-tagged progress events.
+   Reconcile explicitly with the Module 1 cold/unicast law — chains are a
+   different API surface, and the ADR should say why.
+
 **D3.4 — Tracing as an operator, not a framework.** `traced(name)` — a `tap`-based
 operator attaching correlation IDs, timestamps, and stage names to a pluggable sink
 (console, OpenTelemetry span, test collector). Every `stage()` applies it internally;
