@@ -96,6 +96,10 @@ export {
   type EmbeddedChunk,
 } from './index/embed/batch';
 
+export { textFileLoader, type TextFileLoaderOptions } from './index/loaders/text-file';
+export { extractText, webLoader, type WebLoaderOptions } from './index/loaders/web';
+export { jsonLoader, type JsonLoaderOptions } from './index/loaders/json';
+
 export {
   chain,
   type ChainBuilder,
