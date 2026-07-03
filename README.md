@@ -170,6 +170,46 @@ format(extractPrompt);         // carries .schema for parsing later
 Everything in the prompt layer is pure — no I/O, no Observables. Streams
 enter only when a chain feeds a prompt's output to a `ChatModel`.
 
+## Chains are pipes
+
+No `Runnable`, no callback manager. A stage is an RxJS operator; a chain is
+a pipe of them, with a typed context accumulating each stage's patch —
+downstream stages can only reference keys upstream stages provably produced
+(a missing key is a compile error):
+
+```ts
+import { chain, stage, stages, collectText } from 'rxjs-llm';
+
+const pipeline = chain<{ url: string; question: string }>({ trace: consoleSink }).pipe(
+  stage('fetch', ctx => fetchPage(ctx.url)),                       // + { page }
+  stages.parallel({                                                // forkJoin fan-out
+    summary:  (ctx, emit) => model.stream([user(summarize({ page: ctx.page }))])
+      .pipe(collectText(emit), map(summary => ({ summary }))),
+    keywords: (ctx, emit) => model.stream([user(`Keywords: ${ctx.page}`)])
+      .pipe(collectText(emit), map(keywords => ({ keywords }))),
+  }),
+  stage.when('clarify', ctx => ctx.question.endsWith('?'),         // conditional
+    ctx => of({ clarified: ctx.question.replace('?', '') })),
+  stage('answer', (ctx, emit) => model
+    .stream([user(qa({ question: ctx.question, context: ctx.summary }))])
+    .pipe(retryWithBackoff({ maxRetries: 2 }),                     // Module 1 composes inside
+          collectText(emit), map(answer => ({ answer })))),
+);
+
+const { result$, progress$ } = pipeline.run({ url, question });
+```
+
+Two channels per run: `result$` drives the work and delivers the final
+context; `progress$` passively streams stage-tagged model events for UIs,
+ending in exactly one terminal event (`run_complete` | `run_failed`). One
+`run()` call is one execution — the outcome is latched, so `retry()` on
+`result$` re-delivers the same error rather than silently re-running three
+LLM calls (whole-chain retry is an explicit new `run()`; see
+`decisions/0006`). Per-stage failure policy is `onError: 'fail' | 'skip' |
+fallback`, errors carry their stage via `stageOf(error)`, and `traced()`
+reports stage lifecycle to any `TraceSink` — the LangSmith seam is one
+interface with one method.
+
 ## Errors are typed
 
 ```
@@ -199,7 +239,7 @@ mid-`data:`, mid-UTF-8-codepoint, between CR and LF).
 |--------|----------|--------|
 | 1 — Models | `ChatModel`, adapters, transport, resilience operators | ✅ v0.1.0 |
 | 2 — Prompts | typed templates, compile-time-checked placeholders | ✅ v0.2.0 |
-| 3 — Chains | stages as operators, typed accumulating context | dual-channel `run()` shipped (ADR-0006); rest planned |
+| 3 — Chains | stages as operators, typed accumulating context | ✅ v0.3.0 |
 | 4 — Indexes | loaders, splitter, embeddings, vector stores, retriever | planned |
 | 5 — Memory | conversation memory as fold + views | planned |
 | 6 — Agents | tool loop as `expand()`, Zod tools, safety rails | planned |
