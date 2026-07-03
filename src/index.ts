@@ -78,6 +78,14 @@ export {
   type Tokenizer,
 } from './index/split';
 
+export type {
+  MetadataFilter,
+  QueryMatch,
+  VectorEntry,
+  VectorStore,
+} from './index/store/types';
+export { memoryStore } from './index/store/memory';
+
 export {
   chain,
   type ChainBuilder,
