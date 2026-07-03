@@ -14,18 +14,35 @@ import type { AddressInfo } from 'node:net';
  * A user message containing `[slow]` stalls the stream after the first text
  * delta — the hook the cancellation test uses to unsubscribe mid-response.
  */
+/** One scripted model turn for the scenario DSL (Module 6's agent tests). */
+export interface ScenarioTurn {
+  text?: string;
+  toolCalls?: { id: string; name: string; args: Record<string, unknown> }[];
+}
+
 export interface MockServer {
   url: string;
   /** URLs of requests the client aborted before the response finished. */
   aborted: string[];
   /** URL of every request received, in arrival order — the D3.3 pinning counter. */
   requests: string[];
+  /** Parsed body of every request, index-aligned with `requests`. */
+  bodies: unknown[];
+  /**
+   * Scenario DSL: turn N answers the Nth Anthropic request — "on turn 1
+   * emit these tool calls; on turn 2 emit final text". Unscripted servers
+   * echo the last user message.
+   */
+  script(turns: ScenarioTurn[]): void;
   close(): Promise<void>;
 }
 
 export async function startMockServer(): Promise<MockServer> {
   const aborted: string[] = [];
   const requests: string[] = [];
+  const bodies: unknown[] = [];
+  let scenario: ScenarioTurn[] | undefined;
+  let scenarioTurn = 0;
 
   const server = createServer((req, res) => {
     requests.push(req.url ?? '');
@@ -41,6 +58,15 @@ export async function startMockServer(): Promise<MockServer> {
         model?: string;
         messages?: { role: string; content: unknown }[];
       };
+      bodies.push(request);
+
+      if (scenario !== undefined && req.url === '/anthropic/v1/messages') {
+        const turn = scenario[scenarioTurn] ?? { text: '(scenario exhausted)' };
+        scenarioTurn += 1;
+        void serveScenarioTurn(res, request.model ?? 'mock-model', turn);
+        return;
+      }
+
       const prompt = lastUserContent(request);
       const reply = `echo: ${prompt.replace('[slow] ', '').replace('[straggler] ', '')}`;
       const slow = prompt.includes('[slow]');
@@ -65,6 +91,11 @@ export async function startMockServer(): Promise<MockServer> {
     url: `http://127.0.0.1:${port}`,
     aborted,
     requests,
+    bodies,
+    script: (turns) => {
+      scenario = turns;
+      scenarioTurn = 0;
+    },
     close: () =>
       new Promise((resolve) => {
         server.closeAllConnections();
@@ -91,6 +122,80 @@ function delay(ms: number, res: ServerResponse<IncomingMessage>): Promise<void> 
 }
 
 const STALL_MS = 30_000;
+
+/** Serve one scripted turn in Anthropic's genuine wire format. */
+async function serveScenarioTurn(
+  res: ServerResponse<IncomingMessage>,
+  model: string,
+  turn: ScenarioTurn,
+): Promise<void> {
+  res.writeHead(200, { 'content-type': 'text/event-stream' });
+  const sse = (event: string, data: unknown): void => {
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    } catch {
+      /* client gone */
+    }
+  };
+
+  sse('message_start', {
+    type: 'message_start',
+    message: { model, usage: { input_tokens: 5 } },
+  });
+
+  let blockIndex = 0;
+  if (turn.text !== undefined && turn.text !== '') {
+    sse('content_block_start', {
+      type: 'content_block_start',
+      index: blockIndex,
+      content_block: { type: 'text', text: '' },
+    });
+    const half = Math.ceil(turn.text.length / 2);
+    for (const piece of [turn.text.slice(0, half), turn.text.slice(half)]) {
+      if (piece === '') continue;
+      sse('content_block_delta', {
+        type: 'content_block_delta',
+        index: blockIndex,
+        delta: { type: 'text_delta', text: piece },
+      });
+    }
+    sse('content_block_stop', { type: 'content_block_stop', index: blockIndex });
+    blockIndex += 1;
+  }
+
+  for (const toolCall of turn.toolCalls ?? []) {
+    sse('content_block_start', {
+      type: 'content_block_start',
+      index: blockIndex,
+      content_block: { type: 'tool_use', id: toolCall.id, name: toolCall.name },
+    });
+    const args = JSON.stringify(toolCall.args);
+    const half = Math.ceil(args.length / 2);
+    for (const piece of [args.slice(0, half), args.slice(half)]) {
+      if (piece === '') continue;
+      sse('content_block_delta', {
+        type: 'content_block_delta',
+        index: blockIndex,
+        delta: { type: 'input_json_delta', partial_json: piece },
+      });
+    }
+    sse('content_block_stop', { type: 'content_block_stop', index: blockIndex });
+    blockIndex += 1;
+  }
+
+  await delay(2, res);
+  sse('message_delta', {
+    type: 'message_delta',
+    delta: { stop_reason: (turn.toolCalls?.length ?? 0) > 0 ? 'tool_use' : 'end_turn' },
+    usage: { output_tokens: 7 },
+  });
+  sse('message_stop', { type: 'message_stop' });
+  try {
+    res.end();
+  } catch {
+    /* already torn down */
+  }
+}
 
 async function serveAnthropic(
   res: ServerResponse<IncomingMessage>,
