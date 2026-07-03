@@ -13,4 +13,4 @@ import type { StreamEvent } from '../types';
 export type ChainEvent =
   | { type: 'stage_event'; stage: string; event: StreamEvent }
   | { type: 'run_complete' }
-  | { type: 'run_failed'; message: string };
+  | { type: 'run_failed'; message: string; stage?: string };

@@ -101,7 +101,7 @@ describe('D3.3 point 2 — lifecycle coupling and terminal events', () => {
     );
 
     expect(caught).toBe(boom); // the object itself, on result$ alone
-    expect(events).toEqual([{ type: 'run_failed', message: 'stage exploded' }]);
+    expect(events).toEqual([{ type: 'run_failed', message: 'stage exploded', stage: 'bad' }]);
     expect(progressCompleted).toBe(true);
     expect(progressErrored).toBe(false); // one failure, one error handler
   });

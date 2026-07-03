@@ -78,11 +78,14 @@ export {
 } from './chain/chain';
 export {
   stage,
+  stageOf,
   stages,
   type EmitFn,
   type MergedPatch,
   type ParallelBranches,
+  type StageErrorPolicy,
   type StageFn,
+  type StageOptions,
 } from './chain/stage';
 export {
   collectorSink,

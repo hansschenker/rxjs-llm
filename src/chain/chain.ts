@@ -9,7 +9,7 @@ import {
   type Subscription,
 } from 'rxjs';
 import type { ChainEvent } from './events';
-import { CHAIN_EMIT, CHAIN_TRACE, type InternalEmit } from './stage';
+import { CHAIN_EMIT, CHAIN_TRACE, stageOf, type InternalEmit } from './stage';
 import type { TraceContext, TraceSink } from './trace';
 
 export interface ChainOptions {
@@ -175,9 +175,11 @@ function runChain<In extends object, Out extends object>(
       },
       error: (error: unknown) => {
         settled = true;
+        const stage = stageOf(error);
         progress.next({
           type: 'run_failed',
           message: error instanceof Error ? error.message : String(error),
+          ...(stage !== undefined && { stage }),
         });
         progress.complete();
         output.error(error);

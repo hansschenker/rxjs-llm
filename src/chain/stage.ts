@@ -1,10 +1,12 @@
 import {
+  catchError,
   concatMap,
   defer,
   forkJoin,
   map,
   mergeMap,
   of,
+  throwError,
   toArray,
   type Observable,
   type ObservableInput,
@@ -83,11 +85,98 @@ function mergePatches<Ctx extends object, P extends object>(
  * Used outside a chain, `emit` is a no-op and nothing is traced; inside,
  * both ride the context under hidden symbol keys.
  */
+const STAGE_TAG: unique symbol = Symbol('rxjs-llm.chain.stage-tag');
+
+/**
+ * Which stage an error escaped from. The name rides the error object as a
+ * non-enumerable symbol property instead of a wrapper class, because the
+ * latch contract (ADR-0006) re-delivers errors BY IDENTITY and consumers
+ * match with instanceof / isRetryable — wrapping would break all three.
+ * The innermost (actually failing) stage wins; outer stages never overwrite.
+ */
+export function stageOf(error: unknown): string | undefined {
+  if (error === null || (typeof error !== 'object' && typeof error !== 'function')) {
+    return undefined;
+  }
+  return (error as Record<PropertyKey, unknown>)[STAGE_TAG] as string | undefined;
+}
+
+function tagStage(error: unknown, name: string): void {
+  if (error === null || (typeof error !== 'object' && typeof error !== 'function')) return;
+  const record = error as Record<PropertyKey, unknown>;
+  if (record[STAGE_TAG] !== undefined) return; // innermost stage wins
+  try {
+    Object.defineProperty(record, STAGE_TAG, { value: name, enumerable: false });
+  } catch {
+    /* frozen error object — the tag is best-effort */
+  }
+}
+
+/**
+ * Per-stage error policy (Module 3, Phase 5; ADR-0013):
+ * - `'fail'` (default): the error propagates, tagged with the stage name.
+ * - `'skip'`: the stage's patch is dropped and the context flows on —
+ *   the output type becomes `Ctx & Partial<P>`, like a false `when()`.
+ * - a function: fallback — invoked with (ctx, error), its patch merges
+ *   as if the stage had succeeded. Errors thrown by the fallback itself
+ *   propagate, tagged with the same stage name.
+ */
+export type StageErrorPolicy<Ctx extends object, P extends object> =
+  | 'fail'
+  | 'skip'
+  | ((ctx: Ctx, error: unknown) => ObservableInput<P>);
+
+export interface StageOptions<Ctx extends object, P extends object> {
+  onError?: StageErrorPolicy<Ctx, P>;
+}
+
+function applyPolicy<Ctx extends object, P extends object>(
+  name: string,
+  body: Observable<Ctx & P>,
+  ctx: Ctx,
+  policy: StageErrorPolicy<Ctx, P>,
+): Observable<Ctx & P> {
+  return body.pipe(
+    catchError((error: unknown) => {
+      tagStage(error, name);
+      if (policy === 'fail') return throwError(() => error);
+      if (policy === 'skip') return of(ctx as Ctx & P);
+      return mergePatches(
+        defer(() => policy(ctx, error)).pipe(
+          catchError((fallbackError: unknown) => {
+            tagStage(fallbackError, name);
+            return throwError(() => fallbackError);
+          }),
+        ),
+        ctx,
+      );
+    }),
+  );
+}
+
 function stageFn<Ctx extends object, P extends object>(
   name: string,
   fn: StageFn<Ctx, P>,
+): OperatorFunction<Ctx, Ctx & P>;
+function stageFn<Ctx extends object, P extends object>(
+  name: string,
+  fn: StageFn<Ctx, P>,
+  options: { onError: 'skip' },
+): OperatorFunction<Ctx, Ctx & Partial<P>>;
+function stageFn<Ctx extends object, P extends object>(
+  name: string,
+  fn: StageFn<Ctx, P>,
+  options: StageOptions<Ctx, P>,
+): OperatorFunction<Ctx, Ctx & P>;
+function stageFn<Ctx extends object, P extends object>(
+  name: string,
+  fn: StageFn<Ctx, P>,
+  options?: StageOptions<Ctx, P>,
 ): OperatorFunction<Ctx, Ctx & P> {
-  return concatMap((ctx: Ctx) => mergePatches(runBody(name, fn, ctx), ctx));
+  const policy = options?.onError ?? 'fail';
+  return concatMap((ctx: Ctx) =>
+    applyPolicy(name, mergePatches(runBody(name, fn, ctx), ctx), ctx, policy),
+  );
 }
 
 /**
