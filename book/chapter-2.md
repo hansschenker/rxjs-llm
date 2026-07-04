@@ -1,49 +1,25 @@
 <!-- Draft 1 — generated from the v0.6.0 history. The commit log is the outline:
      git log --reverse --oneline -->
 
-# LangChain in 3,100 Lines
+# Everything Composes
 
-*LLM orchestration as RxJS*
+*LangChain in 3,100 lines — part II*
 
 ---
 
-## The bet
+## Where we left off
 
-Every LLM orchestration framework is an async coordination library in disguise.
+Part I ended with two artifacts and a promise. The artifacts: a `ChatModel`
+interface with laws — cold, lazy, unicast, teardown-complete, cancellation as
+silent teardown — behind a normalized `StreamEvent` union that hides every
+provider wire format; and the dual-channel contract, `{ result$, progress$ }`,
+with its hand-rolled latch and its three pinned races. The promise: that
+prompts, chains, retrieval, memory, and agents would each turn out to be a
+small arrangement of ordinary RxJS operators on top of those two contracts.
 
-Strip the branding from LangChain and look at what it actually does: it streams
-tokens from an HTTP response, retries failed requests with backoff, times out
-stalled connections, cancels in-flight work, fans out parallel calls, folds
-streams of deltas into final values, accumulates conversation state, and runs a
-recursive tool-calling loop. Every one of those is an async coordination
-problem — and every one of them was solved, tested, and hardened in RxJS years
-before anyone streamed a token from a language model.
-
-So here is the bet this chapter makes: if you build LLM orchestration *directly
-on RxJS* — no `Runnable` abstraction, no callback manager, no framework layer
-between you and the streams — the entire feature set of a LangChain-class
-library fits in about 3,100 non-blank lines of strict TypeScript, with exactly
-two runtime dependencies: `rxjs` and `zod`.
-
-The result is `rxjs-llm`: six modules, 280 tests, 27 recorded design decisions,
-and one capstone test that composes all six modules into a single pipeline over
-real HTTP. This chapter walks the build in the order it happened, because the
-repository was written to be read that way — each implementation phase is one
-commit, and the history is the tutorial:
+This chapter keeps the promise. The remaining history:
 
 ```
-$ git log --reverse --oneline
-6264c39 Module 1, Phase 1: scaffold, StreamEvent taxonomy, error taxonomy
-01cfed4 Module 1, Phase 2: transport — fetchStream and the SSE parser
-67191ad Module 1, Phase 3: Anthropic adapter — full Messages API event mapping
-7c0be52 Module 1, Phase 4: OpenAI + Ollama adapters, NDJSON framing
-40a76fc Module 1, Phase 5: resilience operators — retry, timeouts, rate limit
-0a714e4 Module 1, Phase 6: mock provider server, integration tests, README — v0.1.0
-b25f319 Plans: ADR checklist for D3.3 (progress$ channel review points)
-5761aa2 Plans: resolve D3.3 checklist points 2 and 4, add the pinning test
-e956ddb Plans: latch all three share() reset flags in D3.3 — retry() must not re-run
-765c0b9 Module 3, D3.3 pulled forward: the dual-channel run() — { result$, progress$ }
-b6d424d D3.3 audit: pin the latch race and success-value identity
 4bb3808 Module 2, Phase 1: placeholder type machinery — ExtractVars, two prompt forms
 558115c Module 2, Phase 2: message builders, messagePrompt, the withHistory slot
 48f1fcf Module 2, Phase 3: format helpers — asBullets, noJargon, asJson
@@ -69,283 +45,13 @@ f863b8e Module 6, Phase 4: the capstone — six modules, one pipeline, real HTTP
 2a79d18 Module 6, Phase 5: README walkthrough, governance — v0.6.0
 ```
 
-Notice something odd in that log: Module 3's dual-channel `run()` lands *before*
-Module 2 starts. The history is honest — a design review mid-project decided
-that one decision could not wait, and we will get to why. But the log also
-shows the discipline that made the project small: every design decision marked
-**D-n** in the plan got an Architecture Decision Record before the code
-shipped, a `NON_GOALS.md` file said no to everything that wasn't orchestration,
-and no runtime dependency entered the tree without an ADR justifying it. Only
-one ever did.
-
-One sentence of orientation per module, and then we build:
-
-1. **Model interface** — one `ChatModel` for every provider, with laws.
-2. **Prompts** — templates whose placeholders the *compiler* checks.
-3. **Chains** — stages are operators; chains are `pipe()`.
-4. **Indexes/RAG** — retrieval as a pipeline of small pure parts.
-5. **Memory** — a reducer plus swappable views; ~150 lines.
-6. **Agents** — the tool loop is `expand()`; safety as values, not exceptions.
-
----
-
-## Module 1 — One interface for every model
-
-Everything downstream depends on one idea: *a streaming LLM response is an
-Observable*. Not "can be wrapped in one" — it structurally *is* one. It's a
-sequence of typed events over time that either completes, errors, or gets
-cancelled, produced lazily by a subscription that maps one-to-one onto an HTTP
-request. That is the definition of a cold Observable.
-
-So the uniform interface is two methods, and the interesting part is the
-contract in the comment:
-
-```ts
-// src/types.ts
-/**
- * Contract — enforced by law tests, not convention:
- * - cold: each subscribe issues exactly one HTTP request
- * - lazy: no fetch before subscribe, nothing emits in the subscribe call frame
- * - unicast: subscribers never share a request
- * - teardown-complete: unsubscribe aborts the underlying fetch
- * - cancellation is silent teardown; it never surfaces on the error channel
- */
-export interface ChatModel {
-  stream(messages: ChatMessage[], options?: ChatOptions): Observable<StreamEvent>;
-  complete(messages: ChatMessage[], options?: ChatOptions): Observable<ChatCompletion>;
-}
-```
-
-"Enforced by law tests, not convention" is the phrase to hold onto. Every
-Observable-returning API in this codebase is covered by the same battery:
-subscribe once and assert exactly one request left the building; construct the
-Observable and assert *nothing* happened before subscribe; subscribe
-synchronously and assert nothing was emitted in the same call frame (the
-classic Zalgo test); unsubscribe mid-stream and assert the `AbortSignal` on the
-server side actually fired. When Module 4's `Embedder` and Module 6's tool
-execution show up later, they inherit this battery wholesale. Laws you test
-once per contract are laws you never debug in production.
-
-### The normalization boundary
-
-Providers do not agree on anything. Anthropic streams Server-Sent Events with
-`content_block_delta` frames; OpenAI streams SSE with delta fragments and a
-literal `[DONE]` sentinel; Ollama streams newline-delimited JSON. The adapter
-layer's whole job is to translate all of that into one discriminated union —
-and after Module 1, no other line of the codebase ever sees a wire format
-again:
-
-```ts
-// src/types.ts
-export type StreamEvent =
-  | { type: 'message_start'; model: string }
-  | { type: 'text_delta'; text: string }
-  | { type: 'thinking_delta'; text: string }
-  | { type: 'tool_call_delta'; id: string; name?: string; argsDelta: string }
-  | { type: 'usage'; input: number; output: number }
-  | { type: 'message_stop'; stopReason: StopReason };
-```
-
-Two deliberate choices are hiding in that union. First, `tool_call_delta` is
-there from day one, five modules before agents exist — because Anthropic and
-OpenAI encode tool-call deltas *incompatibly*, and retrofitting them into a
-taxonomy that all of Modules 3–6 already consume would have meant touching
-everything. Second, tool-call arguments arrive as `argsDelta: string`
-fragments, not parsed objects, because that is the truth of the wire: the model
-streams JSON *text*, and pretending otherwise pushes parsing failures into the
-wrong layer.
-
-### Transport: bytes → frames → events
-
-Under the adapters sits a small transport stack, and its layering was validated
-by an accident of the provider landscape. `fetchStream` turns a `fetch` into
-`Observable<Uint8Array>`, wiring the `AbortController` to teardown. Above it
-sit two framing strategies: an SSE parser for Anthropic and OpenAI, and an
-NDJSON parser for Ollama. Needing a *second* framing strategy is what proves
-the layer boundary is real — if SSE parsing had been fused into the fetch
-layer, Ollama would have forced a rewrite.
-
-The SSE parser's test suite is deliberately hostile. Real HTTP chunk boundaries
-fall wherever the network pleases, so the fixtures split frames mid-`data:`
-prefix, mid-UTF-8 codepoint (a multi-byte character sliced in half across
-chunks), mix CRLF and LF line endings, and spread one event across multiple
-`data:` lines. Streaming parsers that survive that fixture set survive
-production.
-
-### Errors that know whether to retry
-
-The error taxonomy is small, but each type answers one question — *should the
-caller try again?*
-
-```
-LlmError (base, carries provider + requestId)
-├── TransportError       # DNS, TLS, socket reset            → retryable
-├── HttpError            # non-2xx; 429/5xx retryable, other 4xx not
-│     └── RateLimitError # 429, carries retryAfterMs
-├── ParseError           # malformed SSE/JSON                → not retryable
-├── ProviderError        # in-stream error events            → per provider code
-└── TimeoutError         # phase: 'first-byte' retryable, 'idle' not
-```
-
-A single `isRetryable` predicate over this taxonomy drives `retryWithBackoff`
-(jittered exponential, honoring `retryAfterMs` when the provider sent a
-`Retry-After`). Note the two timeout phases — that is ADR-0003, and it matters:
-a connection that opens but never delivers a first byte means the provider is
-overloaded, and retrying will likely land on a healthier node. A stream that
-stalls *mid-generation* means this specific generation wedged, and a retry
-costs you everything already generated. Same operator, `streamTimeout({
-firstByte, idle })`, two failure modes, two retryability verdicts.
-
-And one line of the taxonomy is a design position, recorded as ADR-0005:
-**`AbortError` is not on the list, because cancellation is not an error.**
-Unsubscription is silent teardown. Nothing may surface on the error channel
-because a consumer walked away — no `catchError` should ever have to filter out
-"the user closed the tab." This single rule radiates through every module that
-follows, and Module 6 will pay it the most attention.
-
-Module 1 closes with a mock provider server speaking all three wire dialects,
-so every integration test in the repository runs against real HTTP with zero
-API keys. Tag: `v0.1.0`.
-
----
-
-## Interlude — the dual channel, or: why the history is out of order
-
-The next four commits in the log belong to Module 3, which had not started.
-Here is what happened.
-
-Every module from 3 onward has the same shape of consumer problem: a chain (or
-an agent) produces *one* final value, but a UI wants to render the token stream
-*while it runs*. Two audiences, two channels:
-
-```ts
-const { result$, progress$ } = pipeline.run(input);
-```
-
-`result$` delivers the final value (or the error). `progress$` carries tagged
-stream and lifecycle events for rendering. It looks obvious. It is not — this
-became decision D3.3, the most-reviewed design in the repository, and the
-review found enough sharp edges that the implementation was pulled forward,
-before Module 2, so nothing downstream would build on an unaudited contract.
-
-The contract that survived review, in four rules:
-
-1. **Passivity.** Subscribing to `progress$` alone triggers *nothing*. It is a
-   window onto whatever execution `result$` drives — a UI channel, never an
-   engine.
-2. **Terminal events are data.** When the run ends, `progress$` receives one
-   final `run_complete` or `run_failed` event *as a `next` notification*, then
-   completes. The error *object* travels on `result$` only. A progress renderer
-   should never need a `catchError` to draw a red banner.
-3. **Unobserved events are dropped.** `progress$` does not replay. If nobody is
-   watching, deltas fall on the floor — that is what "UI channel" means.
-4. **One `run()` = one execution.** However many subscribers arrive, in
-   whatever order, at whatever time — exactly one HTTP request is made, and the
-   outcome is *latched permanently*. Late subscribers to `result$` get the
-   settled value, by identity.
-
-Rule 4 sounds like `share()`. The commit log shows the exact path by which it
-is not. The first attempt used `share({ resetOnRefCountZero: false })` plus a
-replay for late subscribers. Then the audit asked one question: *what does
-`retry()` do to this?* — and the answer was a hole. `share()`'s `resetOnError`
-flag defaults to `true`, so an error resets the shared connection, and a
-consumer innocently writing `result$.pipe(retry(2))` would *re-subscribe
-through the back door and fire a second HTTP request* — silently violating
-one-run-per-call. Latch every reset flag, then, and a second audit fixture: a
-mock server whose response keeps dribbling in (the straggler) while a second
-subscriber arrives late, pinning that no combination of arrival timing produces
-a second request.
-
-The share-flag matrix has one more problem: it cannot express *abort on
-abandonment* — if every subscriber leaves mid-run, the HTTP request must be
-aborted (that money is real) — *and* latch-every-outcome at the same time. So
-the final implementation hand-rolls the latch. It is small enough to read in
-full, and it is the most load-bearing fifty lines in the repository:
-
-```ts
-// src/chain/dual-channel.ts
-export function dualChannel<Out, Event>(config: DualChannelConfig<Out, Event>): DualChannel<Out, Event> {
-  const progress = new Subject<Event>();
-  const output = new ReplaySubject<Out>(1);
-  let subscriberCount = 0;
-  let started = false;
-  let settled = false;
-  let execution: Subscription | undefined;
-
-  const start = (): void => {
-    started = true;
-    execution = config
-      .work((event) => progress.next(event))
-      .pipe(subscribeOn(asapScheduler))
-      .subscribe({
-        next: (value) => output.next(value),
-        error: (error: unknown) => {
-          settled = true;
-          progress.next(config.terminal.error(error));
-          progress.complete();
-          output.error(error);
-        },
-        complete: () => {
-          settled = true;
-          progress.next(config.terminal.complete());
-          progress.complete();
-          output.complete();
-        },
-      });
-  };
-
-  const result$ = new Observable<Out>((subscriber) => {
-    subscriberCount += 1;
-    const delivery = output.subscribe(subscriber);
-    if (!started) start();
-    return () => {
-      subscriberCount -= 1;
-      delivery.unsubscribe();
-      if (subscriberCount === 0 && !settled) {
-        queueMicrotask(() => {
-          if (subscriberCount === 0 && !settled) {
-            settled = true;          // cancelled: latch so nothing ever re-executes
-            execution?.unsubscribe(); // aborts in-flight work
-            progress.complete();      // silent — no terminal event (ADR-0005)
-            output.complete();        // late subscribers: immediate empty completion
-          }
-        });
-      }
-    };
-  });
-
-  return { result$, progress$: progress.asObservable() };
-}
-```
-
-Read the teardown closely, because the `queueMicrotask` is not decoration — it
-is the third latch race, found weeks later while building Module 3's tracing.
-`firstValueFrom`, the single most common way anyone consumes `result$`,
-unsubscribes *synchronously inside the delivery of the final value* — after the
-source's `next`, before its `complete`. At that instant, `subscriberCount` is
-zero and `settled` is still false. A naive teardown reads "everyone abandoned
-an unfinished run," aborts the execution, and completes `progress$` *without a
-terminal event* — misreporting a perfectly successful run as cancelled. The fix
-is to defer the cancellation *decision* (not the bookkeeping) by one microtask
-and re-check: if the run settled in the meantime, it was a completion, not an
-abandonment. `subscribeOn(asapScheduler)` on the work handles the mirror-image
-problem at the start of life: even a fully synchronous execution cannot emit
-in the first subscriber's call frame.
-
-Three races — the `retry()` back door, the straggler, the `firstValueFrom`
-teardown — each found by an audit question or a failing trace, each pinned by a
-regression test. This is why the interlude happened before Module 2: contracts
-this subtle must be audited before anything builds on them. And the reward
-comes in Module 6, where agents get this entire audited contract — every rule,
-every race fix — by calling one function.
-
 ---
 
 ## Module 2 — Prompts the compiler checks
 
-After the interlude, a palate cleanser: Module 2 contains no Observables at
-all. A prompt template is a pure function from variables to a string, and the
-only interesting question is: *can the compiler catch a missing variable?*
+After part I's interlude, a palate cleanser: Module 2 contains no Observables
+at all. A prompt template is a pure function from variables to a string, and
+the only interesting question is: *can the compiler catch a missing variable?*
 
 In TypeScript, yes — template-literal types can parse the placeholder grammar
 at the type level:
@@ -399,11 +105,10 @@ enter only when a chain hands a rendered prompt to a `ChatModel`. Tag:
 
 ## Module 3 — Chains are pipes
 
-Here is the chapter's thesis in one sentence of code. LangChain built
-`Runnable` — a bespoke composition abstraction with `invoke`/`batch`/`stream`
-variants and a callback system threaded through it. RxJS already *has* a
-composition abstraction, and it is the most battle-tested one in the
-JavaScript ecosystem:
+Here is the whole bet in one sentence of code. LangChain built `Runnable` — a
+bespoke composition abstraction with `invoke`/`batch`/`stream` variants and a
+callback system threaded through it. RxJS already *has* a composition
+abstraction, and it is the most battle-tested one in the JavaScript ecosystem:
 
 ```ts
 // a stage IS an operator; a chain IS a pipe
@@ -436,16 +141,16 @@ the same pre-join context, no branch can see a sibling's patch (enforced at the
 type level with a `UnionToIntersection` over the branch patches), and the
 joined patch is the intersection of all of them.
 
-The `run()` method wraps the pipe in the dual channel from the interlude,
-and each stage's `emit` feeds tagged model deltas into `progress$` — the
-plumbing rides *inside the context object itself*, under hidden `symbol` keys
-that survive every merge and are stripped before delivery. `traced()` adds a
-tap-based lifecycle seam (`stage_start`, `stage_complete`, `stage_error`, one
-correlation id per run) with no framework: a `TraceSink` is an interface with
-one method, and the collector used in tests is fifteen lines.
+The `run()` method wraps the pipe in part I's dual channel, and each stage's
+`emit` feeds tagged model deltas into `progress$` — the plumbing rides *inside
+the context object itself*, under hidden `symbol` keys that survive every merge
+and are stripped before delivery. `traced()` adds a tap-based lifecycle seam
+(`stage_start`, `stage_complete`, `stage_error`, one correlation id per run)
+with no framework: a `TraceSink` is an interface with one method, and the
+collector used in tests is fifteen lines.
 
 Two lessons from this module's tests are worth stealing. First, the third latch
-race described in the interlude was *found here* — the trace output showed a
+race described in part I was *found here* — the trace output showed a
 successful run ending without its terminal event, and pulling that thread led
 to the `firstValueFrom` teardown. Traces built for users debug the framework
 first. Second, a subtler ordering bug: a stage that emits its value before its
@@ -575,8 +280,8 @@ completed and synchronously pushed the updated state, the push arrived while
 the inner stream was still tearing down, and `exhaustMap` dropped it: the
 re-trigger for the *next* summarization vanished, and the fold silently stopped
 folding. The fix is one operator — `observeOn(asapScheduler)` on the trigger
-path, deferring the re-trigger until the inner stream has fully settled. If the
-interlude's lesson was "audit your latches," this module's is its scheduling
+path, deferring the re-trigger until the inner stream has fully settled. If
+part I's lesson was "audit your latches," this module's is its scheduling
 twin: **synchronous re-entry during teardown is where flat-mapping operators
 keep their sharp edges**. A `pending$` signal rounds out the API so hosts can
 render "summarizing…", and dispose ends everything cleanly — mid-flight folds
@@ -625,10 +330,10 @@ tool-use events). Each expansion streams one model turn — with every delta
 `tap`ped out to `progress$` *before* `collectCompletion()` folds the stream, so
 the UI watches the agent think in real time — then either terminates or runs
 the tools and recurses. Notice what `runAgent` returns: the `dualChannel` from
-the interlude, called as a function. One `runAgent()` = one execution, outcome
-latched, terminal events as data, all three race fixes included — for free.
-The extraction (ADR-0026: *reuse by extraction, not imitation*) happened in
-this module's Phase 2: the audited machinery was lifted out of `chain.ts`
+part I's interlude, called as a function. One `runAgent()` = one execution,
+outcome latched, terminal events as data, all three race fixes included — for
+free. The extraction (ADR-0026: *reuse by extraction, not imitation*) happened
+in this module's Phase 2: the audited machinery was lifted out of `chain.ts`
 verbatim, the chain suite proved the refactor changed nothing, and agents
 plugged in.
 
@@ -777,9 +482,9 @@ layer, no new dependencies without an ADR. Every "no" in that file is a
 thousand lines that were never written. A reference implementation stays
 reference-sized only if refusing features is a governed act, not a vibe.
 
-But the deeper claim is the one from the opening. This was never really a
-chapter about LLMs. Take stock of what did the actual work: `concatMap` made
-chains sequential; `forkJoin` made stages parallel; `scan` was memory;
+But the deeper claim is the bet from the opening of part I. These were never
+really chapters about LLMs. Take stock of what did the actual work: `concatMap`
+made chains sequential; `forkJoin` made stages parallel; `scan` was memory;
 `exhaustMap` made summarization non-blocking; `expand` *was* the agent;
 `tap` was tracing; a `Subject` and a `ReplaySubject` and fifty careful lines
 were the dual channel. The LLM-specific code — wire formats, taxonomies,
