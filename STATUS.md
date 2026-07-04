@@ -35,5 +35,6 @@ the mock server — is green: the repo's definition of done, met at v0.6.0.
 | 6 | Agents / tool use | **done — v0.6.0** |
 
 Full plans: `rxjs-llm-module-plans.md`. Decisions: `decisions/` (27 ADRs).
-Possible next steps: a v1.0.0 cut, npm publish, or the book chapter — the
-commit history (`git log --reverse --oneline`) is its skeleton.
+The book chapter's first draft lives in `book/chapter.md`, built from the
+commit history (`git log --reverse --oneline`) as its skeleton. Possible
+next steps: chapter revisions, a v1.0.0 cut, npm publish.
