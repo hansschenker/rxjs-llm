@@ -1,15 +1,15 @@
 import { defer, Observable, type OperatorFunction } from 'rxjs';
-import { collectCompletion } from '../completion';
-import { ParseError, ProviderError } from '../errors';
-import { fetchStream } from '../transport/fetch-stream';
-import { parseSse, type SseEvent } from '../transport/sse';
+import { collectCompletion } from '../completion.js';
+import { ParseError, ProviderError } from '../errors.js';
+import { fetchStream } from '../transport/fetch-stream.js';
+import { parseSse, type SseEvent } from '../transport/sse.js';
 import type {
   ChatMessage,
   ChatModel,
   ChatOptions,
   StopReason,
   StreamEvent,
-} from '../types';
+} from '../types.js';
 
 export interface AnthropicConfig {
   apiKey: string;

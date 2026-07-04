@@ -1,5 +1,5 @@
 import { map, toArray, type OperatorFunction } from 'rxjs';
-import type { ChatCompletion, StreamEvent, ToolCall } from './types';
+import type { ChatCompletion, StreamEvent, ToolCall } from './types.js';
 
 /**
  * Pure fold from an event sequence to a completion. Exported so the reduction

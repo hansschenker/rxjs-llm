@@ -11,17 +11,17 @@ import {
   toArray,
   type Observable,
 } from 'rxjs';
-import { dualChannel, type DualChannel } from '../chain/dual-channel';
-import { collectCompletion } from '../completion';
+import { dualChannel, type DualChannel } from '../chain/dual-channel.js';
+import { collectCompletion } from '../completion.js';
 import type {
   ChatCompletion,
   ChatMessage,
   ChatModel,
   ChatOptions,
   ToolCall,
-} from '../types';
-import type { AgentEvent } from './events';
-import { executeToolCall, toolRegistry, toToolDefinition, type Tool } from './tool';
+} from '../types.js';
+import type { AgentEvent } from './events.js';
+import { executeToolCall, toolRegistry, toToolDefinition, type Tool } from './tool.js';
 
 /**
  * The loop's answer, as a RESULT VARIANT (decision D6.1, ADR-0025):

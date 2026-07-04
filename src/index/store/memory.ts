@@ -1,5 +1,5 @@
 import { defer, of } from 'rxjs';
-import type { MetadataFilter, QueryMatch, VectorEntry, VectorStore } from './types';
+import type { MetadataFilter, QueryMatch, VectorEntry, VectorStore } from './types.js';
 
 /**
  * Brute-force cosine over Float32Arrays (decision D4.4). Fine to roughly

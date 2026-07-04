@@ -1,6 +1,6 @@
 import { reduce, tap, type OperatorFunction } from 'rxjs';
-import type { StreamEvent } from '../types';
-import type { EmitFn } from './stage';
+import type { StreamEvent } from '../types.js';
+import type { EmitFn } from './stage.js';
 
 /**
  * The D3.3 helper for streaming stages: forward every StreamEvent to the

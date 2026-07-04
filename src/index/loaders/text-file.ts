@@ -1,5 +1,5 @@
 import { Observable } from 'rxjs';
-import type { Doc } from '../types';
+import type { Doc } from '../types.js';
 
 export interface TextFileLoaderOptions {
   /** Keep files whose RELATIVE path matches. RegExp or predicate.

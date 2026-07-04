@@ -1,7 +1,7 @@
 import { map } from 'rxjs';
-import { charEstimator, type Tokenizer } from '../index/split';
-import type { ChatMessage } from '../types';
-import type { MemoryView, Turn } from './core';
+import { charEstimator, type Tokenizer } from '../index/split.js';
+import type { ChatMessage } from '../types.js';
+import type { MemoryView, Turn } from './core.js';
 
 export function turnsToMessages(turns: readonly Turn[]): ChatMessage[] {
   return turns.flatMap((turn): ChatMessage[] => [

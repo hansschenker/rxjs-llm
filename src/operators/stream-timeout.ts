@@ -7,7 +7,7 @@ import {
   type TimeoutConfig,
   type TimeoutInfo,
 } from 'rxjs';
-import { TimeoutError } from '../errors';
+import { TimeoutError } from '../errors.js';
 
 export interface StreamTimeoutOptions {
   /** Max wait for the FIRST emission after subscribe (connection up, no data). */

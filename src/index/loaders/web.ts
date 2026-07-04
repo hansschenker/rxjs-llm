@@ -1,6 +1,6 @@
 import { concatMap, from, map, reduce, type Observable } from 'rxjs';
-import { fetchStream } from '../../transport/fetch-stream';
-import type { Doc } from '../types';
+import { fetchStream } from '../../transport/fetch-stream.js';
+import type { Doc } from '../types.js';
 
 export interface WebLoaderOptions {
   fetchFn?: typeof fetch;

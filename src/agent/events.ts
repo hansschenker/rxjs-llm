@@ -1,4 +1,4 @@
-import type { StreamEvent } from '../types';
+import type { StreamEvent } from '../types.js';
 
 /**
  * The agent's progress$ taxonomy (decision D6.4): model deltas and tool

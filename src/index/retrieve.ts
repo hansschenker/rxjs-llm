@@ -1,7 +1,7 @@
 import { concatMap, from, map, of, type ObservableInput, type OperatorFunction } from 'rxjs';
-import { charEstimator, type Tokenizer } from './split';
-import type { Embedder } from './embed/types';
-import type { MetadataFilter, QueryMatch, VectorStore } from './store/types';
+import { charEstimator, type Tokenizer } from './split.js';
+import type { Embedder } from './embed/types.js';
+import type { MetadataFilter, QueryMatch, VectorStore } from './store/types.js';
 
 export interface RetrieveOptions {
   /** Trim the formatted context to this many tokens (whole blocks only). */

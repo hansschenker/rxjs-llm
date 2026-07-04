@@ -1,6 +1,6 @@
 import { Observable } from 'rxjs';
-import { HttpError, LlmError, ParseError, RateLimitError, TransportError } from '../errors';
-import { parseRetryAfter, type FetchStreamInit } from './fetch-stream';
+import { HttpError, LlmError, ParseError, RateLimitError, TransportError } from '../errors.js';
+import { parseRetryAfter, type FetchStreamInit } from './fetch-stream.js';
 
 const BODY_SNIPPET_LIMIT = 2000;
 

@@ -6,12 +6,12 @@ import {
   type Observable,
   type OperatorFunction,
 } from 'rxjs';
-import type { EmbeddedChunk } from './embed/batch';
-import { embedBatched, type EmbedBatchedOptions } from './embed/batch';
-import type { Embedder } from './embed/types';
-import { splitDocs, type SplitOptions } from './split';
-import type { Doc } from './types';
-import type { VectorEntry, VectorStore } from './store/types';
+import type { EmbeddedChunk } from './embed/batch.js';
+import { embedBatched, type EmbedBatchedOptions } from './embed/batch.js';
+import type { Embedder } from './embed/types.js';
+import { splitDocs, type SplitOptions } from './split.js';
+import type { Doc } from './types.js';
+import type { VectorEntry, VectorStore } from './store/types.js';
 
 /** Fold chunk provenance into the entry's metadata for later citations. */
 export function toVectorEntry(chunk: EmbeddedChunk): VectorEntry {

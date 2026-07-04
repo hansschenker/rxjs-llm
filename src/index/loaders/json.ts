@@ -1,5 +1,5 @@
 import { defer, from, map, type Observable } from 'rxjs';
-import type { Doc } from '../types';
+import type { Doc } from '../types.js';
 
 export interface JsonLoaderOptions {
   /** Which field holds the text, or a function deriving it. */

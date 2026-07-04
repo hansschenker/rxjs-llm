@@ -14,10 +14,10 @@ import {
   takeUntil,
   type Observable,
 } from 'rxjs';
-import { promptTemplate } from '../prompt/template';
-import type { ChatModel } from '../types';
-import type { MemoryView, Turn } from './core';
-import { turnsToMessages } from './views';
+import { promptTemplate } from '../prompt/template.js';
+import type { ChatModel } from '../types.js';
+import type { MemoryView, Turn } from './core.js';
+import { turnsToMessages } from './views.js';
 
 export interface SummaryViewOptions {
   /** Fold when more than this many turns are un-summarized. Default 8. */

@@ -1,5 +1,5 @@
 import { defer, from, map, of, type Observable } from 'rxjs';
-import type { MetadataFilter, QueryMatch, VectorEntry, VectorStore } from './types';
+import type { MetadataFilter, QueryMatch, VectorEntry, VectorStore } from './types.js';
 
 /**
  * PGlite (WASM Postgres) + pgvector store via Drizzle (decision D4.4,

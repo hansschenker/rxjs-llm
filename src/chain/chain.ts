@@ -1,8 +1,8 @@
 import { map, of, type Observable, type OperatorFunction } from 'rxjs';
-import { dualChannel } from './dual-channel';
-import type { ChainEvent } from './events';
-import { CHAIN_EMIT, CHAIN_TRACE, stageOf, type InternalEmit } from './stage';
-import type { TraceContext, TraceSink } from './trace';
+import { dualChannel } from './dual-channel.js';
+import type { ChainEvent } from './events.js';
+import { CHAIN_EMIT, CHAIN_TRACE, stageOf, type InternalEmit } from './stage.js';
+import type { TraceContext, TraceSink } from './trace.js';
 
 export interface ChainOptions {
   /** Trace sink; when set, every stage reports start/complete/error to it. */

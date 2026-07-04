@@ -1,5 +1,5 @@
 import { Observable } from 'rxjs';
-import { HttpError, LlmError, RateLimitError, TransportError } from '../errors';
+import { HttpError, LlmError, RateLimitError, TransportError } from '../errors.js';
 
 export interface FetchStreamInit {
   /** Defaults to POST — every LLM API this package targets is POST-only. */

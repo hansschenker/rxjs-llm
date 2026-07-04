@@ -1,4 +1,4 @@
-import type { StreamEvent } from '../types';
+import type { StreamEvent } from '../types.js';
 
 /**
  * The progress$ channel's event taxonomy (decision D3.3, ADR-0006).

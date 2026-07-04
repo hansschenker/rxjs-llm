@@ -7,9 +7,9 @@ import {
   type OperatorFunction,
   type SchedulerLike,
 } from 'rxjs';
-import { rateLimit } from '../../operators/rate-limit';
-import type { Chunk } from '../types';
-import type { Embedder } from './types';
+import { rateLimit } from '../../operators/rate-limit.js';
+import type { Chunk } from '../types.js';
+import type { Embedder } from './types.js';
 
 export interface EmbedBatchedOptions {
   /** Texts per embedding request. Default 64. */

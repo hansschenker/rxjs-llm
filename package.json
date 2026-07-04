@@ -1,6 +1,6 @@
 {
   "name": "rxjs-llm",
-  "version": "0.6.0",
+  "version": "1.0.0",
   "description": "LLM orchestration primitives built directly on RxJS — a uniform model interface, prompts, chains, RAG plumbing, memory, and agents in pure TypeScript.",
   "type": "module",
   "license": "MIT",
@@ -8,18 +8,57 @@
     "type": "git",
     "url": "https://github.com/hansschenker/rxjs-llm.git"
   },
+  "keywords": [
+    "rxjs",
+    "llm",
+    "observable",
+    "streaming",
+    "agents",
+    "rag",
+    "anthropic",
+    "openai",
+    "ollama"
+  ],
+  "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts",
-    "./pglite": "./src/index/store/pglite.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./pglite": {
+      "types": "./dist/index/store/pglite.d.ts",
+      "default": "./dist/index/store/pglite.js"
+    }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
     "rxjs": "^7.8.1",
     "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@electric-sql/pglite": ">=0.5.4",
+    "@electric-sql/pglite-pgvector": ">=0.0.5",
+    "drizzle-orm": ">=0.45.0"
+  },
+  "peerDependenciesMeta": {
+    "@electric-sql/pglite": {
+      "optional": true
+    },
+    "@electric-sql/pglite-pgvector": {
+      "optional": true
+    },
+    "drizzle-orm": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",

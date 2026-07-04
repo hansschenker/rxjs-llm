@@ -1,5 +1,5 @@
 import { mergeMap, type OperatorFunction } from 'rxjs';
-import type { Chunk, Doc, TextChunk } from './types';
+import type { Chunk, Doc, TextChunk } from './types.js';
 
 /**
  * Token counting behind an interface (decision D4.2, ADR-0014). The default

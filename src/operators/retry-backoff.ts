@@ -6,7 +6,7 @@ import {
   type MonoTypeOperatorFunction,
   type SchedulerLike,
 } from 'rxjs';
-import { isRetryable, RateLimitError } from '../errors';
+import { isRetryable, RateLimitError } from '../errors.js';
 
 export interface RetryBackoffOptions {
   /** Retry attempts after the first failure. Default 3. */

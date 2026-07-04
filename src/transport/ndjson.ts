@@ -1,5 +1,5 @@
 import { Observable, type OperatorFunction } from 'rxjs';
-import { ParseError } from '../errors';
+import { ParseError } from '../errors.js';
 
 /**
  * NDJSON framing: `Observable<Uint8Array>` → one parsed JSON value per line.

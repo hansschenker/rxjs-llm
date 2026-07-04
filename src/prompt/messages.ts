@@ -1,5 +1,5 @@
-import type { ChatMessage } from '../types';
-import { renderTemplate, type ExtractVars, type PromptVars } from './template';
+import type { ChatMessage } from '../types.js';
+import { renderTemplate, type ExtractVars, type PromptVars } from './template.js';
 
 /** Single-turn builders — trivial, but they read well in chains and tests. */
 export const system = (content: string): ChatMessage => ({ role: 'system', content });

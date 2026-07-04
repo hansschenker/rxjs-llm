@@ -11,10 +11,10 @@ import {
   type ObservableInput,
 } from 'rxjs';
 import { z } from 'zod';
-import { TimeoutError } from '../errors';
-import { retryWithBackoff } from '../operators/retry-backoff';
-import { streamTimeout } from '../operators/stream-timeout';
-import type { ToolCall, ToolDefinition } from '../types';
+import { TimeoutError } from '../errors.js';
+import { retryWithBackoff } from '../operators/retry-backoff.js';
+import { streamTimeout } from '../operators/stream-timeout.js';
+import type { ToolCall, ToolDefinition } from '../types.js';
 
 export interface ToolContext {
   /** Fires when the tool execution is cancelled — pass it to fetch etc. */

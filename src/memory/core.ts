@@ -6,8 +6,8 @@ import {
   Subscription,
   type Observable,
 } from 'rxjs';
-import type { ChatMessage } from '../types';
-import { fullView } from './views';
+import type { ChatMessage } from '../types.js';
+import { fullView } from './views.js';
 
 /** One conversational exchange — the unit the reducer folds over. */
 export interface Turn {

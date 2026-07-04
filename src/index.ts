@@ -7,7 +7,7 @@ export type {
   StreamEvent,
   ToolCall,
   ToolDefinition,
-} from './types';
+} from './types.js';
 
 export {
   HttpError,
@@ -19,26 +19,26 @@ export {
   TimeoutError,
   TransportError,
   type LlmErrorOptions,
-} from './errors';
+} from './errors.js';
 
-export { collectCompletion, foldEvents } from './completion';
+export { collectCompletion, foldEvents } from './completion.js';
 
 export {
   fetchStream,
   parseRetryAfter,
   type FetchStreamInit,
-} from './transport/fetch-stream';
-export { parseSse, type SseEvent } from './transport/sse';
-export { parseNdjson } from './transport/ndjson';
-export { fetchJson } from './transport/fetch-json';
+} from './transport/fetch-stream.js';
+export { parseSse, type SseEvent } from './transport/sse.js';
+export { parseNdjson } from './transport/ndjson.js';
+export { fetchJson } from './transport/fetch-json.js';
 
-export { anthropic, type AnthropicConfig } from './adapters/anthropic';
-export { openai, type OpenAiConfig } from './adapters/openai';
-export { ollama, type OllamaConfig } from './adapters/ollama';
+export { anthropic, type AnthropicConfig } from './adapters/anthropic.js';
+export { openai, type OpenAiConfig } from './adapters/openai.js';
+export { ollama, type OllamaConfig } from './adapters/ollama.js';
 
-export { retryWithBackoff, type RetryBackoffOptions } from './operators/retry-backoff';
-export { streamTimeout, type StreamTimeoutOptions } from './operators/stream-timeout';
-export { rateLimit, type RateLimitOptions } from './operators/rate-limit';
+export { retryWithBackoff, type RetryBackoffOptions } from './operators/retry-backoff.js';
+export { streamTimeout, type StreamTimeoutOptions } from './operators/stream-timeout.js';
+export { rateLimit, type RateLimitOptions } from './operators/rate-limit.js';
 
 export {
   prompt,
@@ -48,7 +48,7 @@ export {
   type ExtractVars,
   type PromptFn,
   type PromptVars,
-} from './prompt/template';
+} from './prompt/template.js';
 
 export {
   assistant,
@@ -60,7 +60,7 @@ export {
   type FewShotPair,
   type MessagePromptFn,
   type MessagePromptSpec,
-} from './prompt/messages';
+} from './prompt/messages.js';
 
 export {
   asBullets,
@@ -68,44 +68,44 @@ export {
   noJargon,
   type FormatInstruction,
   type JsonFormat,
-} from './prompt/format';
+} from './prompt/format.js';
 
-export type { Chunk, Doc, TextChunk } from './index/types';
+export type { Chunk, Doc, TextChunk } from './index/types.js';
 export {
   charEstimator,
   splitDocs,
   splitText,
   type SplitOptions,
   type Tokenizer,
-} from './index/split';
+} from './index/split.js';
 
 export type {
   MetadataFilter,
   QueryMatch,
   VectorEntry,
   VectorStore,
-} from './index/store/types';
-export { memoryStore } from './index/store/memory';
+} from './index/store/types.js';
+export { memoryStore } from './index/store/memory.js';
 
-export type { Embedder } from './index/embed/types';
-export { openaiEmbedder, type OpenAiEmbedderConfig } from './index/embed/openai';
-export { ollamaEmbedder, type OllamaEmbedderConfig } from './index/embed/ollama';
+export type { Embedder } from './index/embed/types.js';
+export { openaiEmbedder, type OpenAiEmbedderConfig } from './index/embed/openai.js';
+export { ollamaEmbedder, type OllamaEmbedderConfig } from './index/embed/ollama.js';
 export {
   embedBatched,
   type EmbedBatchedOptions,
   type EmbeddedChunk,
-} from './index/embed/batch';
+} from './index/embed/batch.js';
 
-export { textFileLoader, type TextFileLoaderOptions } from './index/loaders/text-file';
-export { extractText, webLoader, type WebLoaderOptions } from './index/loaders/web';
-export { jsonLoader, type JsonLoaderOptions } from './index/loaders/json';
+export { textFileLoader, type TextFileLoaderOptions } from './index/loaders/text-file.js';
+export { extractText, webLoader, type WebLoaderOptions } from './index/loaders/web.js';
+export { jsonLoader, type JsonLoaderOptions } from './index/loaders/json.js';
 
 export {
   retrieveContext,
   type RetrievedContext,
   type RetrieveOptions,
-} from './index/retrieve';
-export { ingest, toVectorEntry, upsertInto, type IngestOptions } from './index/ingest';
+} from './index/retrieve.js';
+export { ingest, toVectorEntry, upsertInto, type IngestOptions } from './index/ingest.js';
 
 export {
   createMemory,
@@ -114,19 +114,19 @@ export {
   type MemorySnapshot,
   type MemoryView,
   type Turn,
-} from './memory/core';
+} from './memory/core.js';
 export {
   fullView,
   tokenBudgetView,
   turnsToMessages,
   turnTokens,
   windowView,
-} from './memory/views';
+} from './memory/views.js';
 export {
   summaryView,
   type SummaryPrompt,
   type SummaryViewOptions,
-} from './memory/summary';
+} from './memory/summary.js';
 
 export {
   executeToolCall,
@@ -137,9 +137,9 @@ export {
   type ToolContext,
   type ToolExecutionResult,
   type ToolSpec,
-} from './agent/tool';
-export { runAgent, type AgentOptions, type AgentOutcome } from './agent/loop';
-export type { AgentEvent } from './agent/events';
+} from './agent/tool.js';
+export { runAgent, type AgentOptions, type AgentOutcome } from './agent/loop.js';
+export type { AgentEvent } from './agent/events.js';
 
 export {
   chain,
@@ -147,7 +147,7 @@ export {
   type ChainOptions,
   type ChainRun,
   type RunnableChain,
-} from './chain/chain';
+} from './chain/chain.js';
 export {
   stage,
   stageOf,
@@ -158,7 +158,7 @@ export {
   type StageErrorPolicy,
   type StageFn,
   type StageOptions,
-} from './chain/stage';
+} from './chain/stage.js';
 export {
   collectorSink,
   consoleSink,
@@ -167,6 +167,6 @@ export {
   type TraceContext,
   type TraceEvent,
   type TraceSink,
-} from './chain/trace';
-export { collectText } from './chain/collect-text';
-export type { ChainEvent } from './chain/events';
+} from './chain/trace.js';
+export { collectText } from './chain/collect-text.js';
+export type { ChainEvent } from './chain/events.js';

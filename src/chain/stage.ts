@@ -12,8 +12,8 @@ import {
   type ObservableInput,
   type OperatorFunction,
 } from 'rxjs';
-import type { StreamEvent } from '../types';
-import { traced, type TraceContext } from './trace';
+import type { StreamEvent } from '../types.js';
+import { traced, type TraceContext } from './trace.js';
 
 /**
  * Hidden context keys carrying the run's plumbing. Enumerable on purpose:

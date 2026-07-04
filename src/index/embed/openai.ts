@@ -1,7 +1,7 @@
 import { defer, map } from 'rxjs';
-import { ParseError } from '../../errors';
-import { fetchJson } from '../../transport/fetch-json';
-import type { Embedder } from './types';
+import { ParseError } from '../../errors.js';
+import { fetchJson } from '../../transport/fetch-json.js';
+import type { Embedder } from './types.js';
 
 export interface OpenAiEmbedderConfig {
   apiKey: string;
