@@ -86,9 +86,9 @@ and the names the runtime extracts are identical. When your type system and
 your runtime both parse the same little language, they must be tested as
 mirror images, or they will drift.
 
-There are two exports — `promptTemplate('...')` for the parsed form and
-prompt\`Summarize ${'doc'}\` as a tagged literal where interpolations *are* the
-placeholder names — deliberately not one overloaded function. That is ADR-0008,
+There are two exports — `promptTemplate('...')` for the parsed form, and
+``prompt`Summarize ${'doc'}` `` as a tagged literal where interpolations *are*
+the placeholder names — deliberately not one overloaded function. That is ADR-0008,
 and the reasoning is a scar from Module 1: an overloaded signature on the
 `streamTimeout` operator once sent TypeScript's overload resolution somewhere
 dark, and the lesson stuck. Two behaviors, two names.
@@ -455,7 +455,7 @@ character — six modules deep, the streaming path never broke. Memory holds the
 exchange. The trace shows both stages, in order, under one correlation id. And
 the last event on `progress$` is `{ type: 'run_complete' }` — the dual
 channel's terminal event, closing the loop on a contract designed in an
-interlude thirty commits earlier.
+interlude twenty-six commits earlier.
 
 Look once more at the middle of that pipeline. `retrieveContext` — a chain
 operator — is the *body of a tool*, handed to an agent, which is itself a
@@ -473,7 +473,7 @@ PGlite/Drizzle opt-in behind a subpath. **280 tests** in 37 files: law tests,
 marble tests with injected schedulers, fast-check properties, adversarial
 byte-level fixtures, and integration tests over real HTTP with no API keys.
 **27 ADRs**, one per design decision, written when the decision was made.
-**34 commits**, each one a phase, readable end to end.
+**34 commits** — phases, plan reviews, and audits — readable end to end.
 
 Part of the smallness is subtraction, and `NON_GOALS.md` deserves explicit
 credit: no `Runnable` reinvention, no ReAct scaffolding, no document-
