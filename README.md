@@ -383,10 +383,70 @@ mid-`data:`, mid-UTF-8-codepoint, between CR and LF).
 | 5 — Memory | conversation memory as fold + views | ✅ v0.5.0 |
 | 6 — Agents | tool loop as `expand()`, Zod tools, safety rails | ✅ v0.6.0 |
 
-Design decisions live in `decisions/` (27 ADRs); scope boundaries in
+Design decisions live in `decisions/` (28 ADRs); scope boundaries in
 `NON_GOALS.md`; the working conventions in `PRINCIPLES.md`. The commit
 history is written to read as a tutorial — `git log --reverse --oneline`
 is the table of contents, from `fetch` to the capstone.
+
+## How this was built
+
+The library went from an empty directory to v1.0.0 in a fixed sequence of
+steps, and the sequence mattered as much as the code. It was built in
+Claude Code sessions — one module per session, the plan document as the
+brief — and the method is reconstructible from the history. From a high
+level:
+
+1. **Plan before code.** Everything started as a design document
+   (`rxjs-llm-module-plans.md`): six modules, a phase breakdown per module,
+   and every contestable choice marked as a numbered decision (**D-n**)
+   that would need an ADR before shipping. The governance scaffolding —
+   `STATUS.md`, `NON_GOALS.md`, `PRINCIPLES.md`, `decisions/` — was created
+   first, so the rules existed before there was code to break them.
+
+2. **Contracts before features.** Module 1 spent its budget on laws, not
+   breadth: every Observable-returning API is cold, lazy, unicast, and
+   teardown-complete; cancellation never surfaces as an error; all
+   providers normalize into one `StreamEvent` union. These were written as
+   *tests first* ("law tests"), so every later module inherited a passing
+   battery instead of a convention.
+
+3. **Pull the riskiest design forward.** The `{ result$, progress$ }`
+   dual-channel contract was scheduled for Module 3, but a design review
+   found sharp edges — so it was implemented and audited out of order,
+   before Module 2, and the audit surfaced three latch races (a `retry()`
+   back door, a server-straggler double-execution, a `firstValueFrom`
+   teardown misreport) that were each pinned with regression tests.
+   Nothing downstream ever built on an unaudited contract.
+
+4. **One phase, one commit; one module, one tag.** Modules 2–5 followed
+   the plan in order. Each phase ended the same way: strict `tsc` clean,
+   full suite green, then exactly one commit — so the history reads as a
+   tutorial. Each module ended with a `STATUS.md` update, its ADRs filed,
+   and a version tag (v0.2.0 … v0.5.0).
+
+5. **Test the claims, not the lines.** Anything claiming algebraic
+   structure got property tests (fast-check); every custom operator got
+   marble tests with an injected scheduler; the SSE parser got adversarial
+   byte-split fixtures; the `VectorStore` got a contract suite that both
+   implementations must pass; and all integration tests run against a
+   local mock provider server, so CI has never needed an API key.
+
+6. **Finish at the capstone.** Module 6 (agents) reused the audited dual
+   channel by extraction rather than reimplementation, and the repo's
+   definition of done — written into the plan before most of the code
+   existed — was one test composing all six modules into a single pipeline
+   over real HTTP: retrieve → agent with a retrieval tool → memory record,
+   as a chain. When it went green, the plan was complete (v0.6.0).
+
+7. **Then, and only then, the shipping shape.** Post-plan work: the book
+   chapters in `book/`, drafted from the commit history as their outline;
+   and the v1.0.0 packaging — compiled NodeNext ESM in `dist/`, explicit
+   `.js` specifiers, PGlite/Drizzle as optional peers, a `prepublishOnly`
+   gate that re-runs the whole suite (ADR-0028).
+
+The method in one sentence: decide on paper, encode the decisions as
+tests, build in commit-sized phases that each leave the suite green, and
+let one end-to-end test define what "done" means.
 
 ## Development
 
