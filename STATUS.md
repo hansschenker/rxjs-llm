@@ -1,23 +1,27 @@
 # STATUS
 
-**Current module:** 5 — Memory — **complete, tagged v0.5.0**
-**Next:** Module 6 — Agents / tool use — the capstone. Its final test
-(retrieve → agent → memory, composed as a chain, against the mock server)
-is the repo's definition of done. See `rxjs-llm-module-plans.md`.
+**All six modules complete.** The capstone test — retrieve → agent with a
+retrieval tool → memory record, composed as a chain over real HTTP against
+the mock server — is green: the repo's definition of done, met at v0.6.0.
 
-## Module 5 phase checklist
+## Module 6 phase checklist
 
-- [x] Phases 1+2 — Core reducer (scan over the turn stream) + full/window/
-      token-budget views; reactivity and suffix/budget/pairing properties.
-      ADR-0020 (D5.1), ADR-0021 (D5.3).
-- [x] Phase 3 — summaryView: the async fold — eventually consistent,
-      exhaustMap-non-overlapping (with the observeOn re-trigger fix),
-      failure-tolerant, abortable via dispose(). ADR-0022 (D5.2).
-- [x] Phase 4 — snapshot/restore with the equivalence property; turns are
-      truth, derived state is not snapshotted. ADR-0023 (D5.4).
+- [x] Phase 1 — Zod-defined tools: validation → self-correction messages,
+      abortable execution, timeout/retries on Module 1's operators.
+      ADR-0024 (D6.2; zod v4 eliminated zod-to-json-schema).
+- [x] Phase 2 — The expand() loop (max-iterations as an OUTCOME) and the
+      dual-channel machinery extracted from chain.ts so agents get the
+      audited D3.3 contract verbatim. ADR-0025 (D6.1), ADR-0026 (D6.4).
+- [x] Phase 3 — Safety rails: budget, per-tool timeout, concurrency cap,
+      and the full cancellation matrix (mid-stream / mid-tool / between
+      iterations, multi-AbortSignal). ADR-0027 (D6.3).
+- [x] Phase 4 — Mock-server scenario DSL, THE CAPSTONE (six modules, one
+      pipeline, two wire requests, tool result = Module 4's retrieval),
+      loop-state property tests.
+- [x] Phase 5 — README walkthrough, governance updates, v0.6.0.
 
-252 tests, all green; strict `tsc` clean. Core runtime dependency: `rxjs`
-only (pglite/drizzle remain opt-in via subpath).
+280 tests, all green; strict `tsc` clean. Runtime dependencies: `rxjs` +
+`zod` (pglite/drizzle opt-in via subpath). ~3,100 non-blank source lines.
 
 ## Modules
 
@@ -28,6 +32,8 @@ only (pglite/drizzle remain opt-in via subpath).
 | 3 | Chains | **done — v0.3.0** |
 | 4 | Indexes / RAG | **done — v0.4.0** |
 | 5 | Memory | **done — v0.5.0** |
-| 6 | Agents / tool use | planned |
+| 6 | Agents / tool use | **done — v0.6.0** |
 
-Full plans: `rxjs-llm-module-plans.md`. Decisions: `decisions/` (23 ADRs).
+Full plans: `rxjs-llm-module-plans.md`. Decisions: `decisions/` (27 ADRs).
+Possible next steps: a v1.0.0 cut, npm publish, or the book chapter — the
+commit history (`git log --reverse --oneline`) is its skeleton.

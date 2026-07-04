@@ -1,15 +1,14 @@
 # rxjs-llm
 
 LLM orchestration primitives built directly on RxJS — the useful core of
-LangChain in pure TypeScript, with no framework machinery. Streams are
-Observables, workflows are pipes, resilience is operators.
+LangChain in roughly 3,100 lines of pure TypeScript, with no framework
+machinery. Streams are Observables, workflows are pipes, resilience is
+operators, memory is a fold, and the agent loop is an `expand()` recursion.
 
-**Module 1 (this release): the Uniform Model Interface.** One `ChatModel`
-contract over Anthropic, OpenAI, and Ollama, a normalized streaming event
-taxonomy, a typed error taxonomy, and composable resilience operators.
+All six modules are complete. Two runtime dependencies: `rxjs` and `zod`.
 
 ```
-bun install rxjs-llm   # or npm / pnpm — ESM only, rxjs@7.8 is the one dependency
+bun install rxjs-llm   # or npm / pnpm — ESM only
 ```
 
 ## The contract
@@ -265,6 +264,91 @@ never overlaps folds, degrades to raw turns on summarizer failure, and
 aborts cleanly on `dispose()`. Persistence is `snapshot()`/`restore` only:
 turns are the truth, views are projections, hosts persist however they like.
 
+## Agents are a recursion
+
+The tool-call loop is `expand()` over Module 1's native tool-use events —
+no ReAct scaffolding, providers reason natively. Tools are Zod-defined:
+one schema validates the model's arguments at runtime, derives the
+provider JSON Schema (zod v4's `z.toJSONSchema`), and types the handler:
+
+```ts
+import { runAgent, tool } from 'rxjs-llm';
+import { z } from 'zod';
+
+const weather = tool({
+  name: 'get_weather',
+  description: 'Current weather for a city',
+  input: z.object({ city: z.string() }),
+  execute: ({ city }, { signal }) => fetchWeather(city, signal),
+  timeoutMs: 5_000,
+});
+
+const { result$, progress$ } = runAgent(model, {
+  tools: [weather],
+  messages: [user('Do I need an umbrella in Rapperswil tomorrow?')],
+  maxIterations: 8,
+  toolConcurrency: 4,
+});
+```
+
+The robustness trick: invalid arguments, unknown tools, execution
+failures, and timeouts all become tool-result messages **returned to the
+model** — it self-corrects on the next turn, and the loop can never stall
+waiting for a missing result. Exceeding `maxIterations` is an **outcome**
+(`{ type: 'max_iterations', messages, … }`), not an error: a budget is
+policy, and policy outcomes are data. Unsubscribing aborts the in-flight
+model call and every in-flight tool (each receives an `AbortSignal`) —
+the cancellation matrix (mid-stream, mid-tool, between iterations) is
+pinned by test.
+
+`progress$` interleaves model deltas and tool lifecycle events, tagged by
+iteration, with the same audited channel contract as chains — literally
+the same implementation (`dual-channel.ts`), which is why an agent
+composes into a chain as an ordinary stage.
+
+## The whole thing, end to end
+
+The capstone test (`test/agent/capstone.test.ts`) is the library in one
+pipeline — six modules, real HTTP, no API keys:
+
+```ts
+const searchDocs = tool({                                   // Module 6
+  name: 'search_docs',
+  input: z.object({ query: z.string() }),
+  execute: ({ query }) => of(query).pipe(
+    retrieveContext(store, embedder, 3),                    // Module 4
+    map(r => r.context)),
+});
+
+const pipeline = chain<{ question: string }>({ trace }).pipe(   // Module 3
+  stage('agent', (ctx, emit) => defer(() => {
+    const agent = runAgent(model, {                         // Modules 6 + 1
+      tools: [searchDocs],
+      messages: [user(ask({ question: ctx.question }))],    // Module 2
+      maxIterations: 5,
+    });
+    const forward = agent.progress$.subscribe(e => {
+      if (e.type === 'model_event') emit(e.event);          // deltas flow up
+    });
+    return agent.result$.pipe(
+      finalize(() => forward.unsubscribe()),
+      map(o => ({ answer: o.type === 'complete' ? o.text : '(budget exceeded)' })));
+  })),
+  stage('remember', ctx => {
+    memory.record({ user: ctx.question, assistant: ctx.answer }); // Module 5
+    return of({ remembered: true });
+  }),
+);
+
+const { result$, progress$ } = pipeline.run({ question });
+```
+
+Model deltas stream from inside the agent, through the chain's
+`progress$`, to your UI; the tool's body is the RAG retriever; the answer
+lands in conversation memory; unsubscribing anywhere tears the whole
+stack down to the socket. `git log --reverse --oneline` reads as the
+tutorial that builds this up from `fetch`.
+
 ## Errors are typed
 
 ```
@@ -297,11 +381,12 @@ mid-`data:`, mid-UTF-8-codepoint, between CR and LF).
 | 3 — Chains | stages as operators, typed accumulating context | ✅ v0.3.0 |
 | 4 — Indexes | loaders, splitter, embeddings, vector stores, retriever | ✅ v0.4.0 |
 | 5 — Memory | conversation memory as fold + views | ✅ v0.5.0 |
-| 6 — Agents | tool loop as `expand()`, Zod tools, safety rails | planned |
+| 6 — Agents | tool loop as `expand()`, Zod tools, safety rails | ✅ v0.6.0 |
 
-Design decisions live in `decisions/`; scope boundaries in `NON_GOALS.md`;
-the working conventions in `PRINCIPLES.md`. The commit history is written to
-read as a tutorial — `git log --reverse --oneline` is the table of contents.
+Design decisions live in `decisions/` (27 ADRs); scope boundaries in
+`NON_GOALS.md`; the working conventions in `PRINCIPLES.md`. The commit
+history is written to read as a tutorial — `git log --reverse --oneline`
+is the table of contents, from `fetch` to the capstone.
 
 ## Development
 

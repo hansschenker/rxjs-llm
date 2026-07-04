@@ -39,7 +39,7 @@ These are enforced by tests, not just convention:
 
 - **Each phase = one commit** — the git history is meant to read as a tutorial. Follow the phase breakdown in the module plan.
 - Keep `STATUS.md` current; file an ADR in `decisions/` for every design decision marked **D-n** in the plan; respect `NON_GOALS.md`.
-- **No new runtime dependencies without an ADR** justifying them. Known-sanctioned ones: `zod` + `zod-to-json-schema` (Module 6), optional `tiktoken` behind a dynamic import (Module 4).
+- **No new runtime dependencies without an ADR** justifying them. Sanctioned: `rxjs`, `zod` (Module 6, ADR-0024 — v4's native `z.toJSONSchema` replaced `zod-to-json-schema`). tiktoken was deliberately not taken (the `Tokenizer` interface is the seam); PGlite/Drizzle are opt-in via the `rxjs-llm/pglite` subpath.
 - After each module: update `STATUS.md`, file the module's ADRs, tag `v0.N.0`.
 - Session pattern: one module per session. Start by reading `STATUS.md`, `NON_GOALS.md`, and `decisions/`, then implement the module per its plan section. Modules 2 and 5 are small enough to pair; Module 4 may split at the phase 3/4 boundary.
 

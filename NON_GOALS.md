@@ -15,5 +15,8 @@ Things this repo deliberately does not do. Additions require an ADR.
 - **No API keys in CI.** All integration tests run against the local mock
   provider server.
 - **No new runtime dependencies without an ADR.** Currently sanctioned:
-  `rxjs`. Pre-approved when their module lands: `zod` + `zod-to-json-schema`
-  (Module 6), optional `tiktoken` behind a dynamic import (Module 4).
+  `rxjs`, `zod` (Module 6, ADR-0024 — v4's native `z.toJSONSchema` made
+  `zod-to-json-schema` unnecessary). tiktoken was pre-approved for
+  Module 4 and deliberately NOT taken: the `Tokenizer` interface is the
+  seam (ADR-0014). PGlite/Drizzle are opt-in via the `rxjs-llm/pglite`
+  subpath, never core dependencies (ADR-0018).
